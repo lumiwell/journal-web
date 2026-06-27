@@ -55,7 +55,7 @@ export default function Home() {
         
         {/* 头部标题区 */}
         <div className="p-4 border-b border-gray-100 text-center">
-          <h1 className="text-xl font-bold text-gray-800">Insight Journal</h1>
+          <h1 className="text-xl font-bold text-gray-800">Journal</h1>
           <p className="text-xs text-gray-400">基于 CBT 的自我觉察树洞</p>
         </div>
 
