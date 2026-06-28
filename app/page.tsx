@@ -1,52 +1,107 @@
 "use client"; // 🎯 核心考点：强制声明为客户端组件
 
+import { useChat } from "@ai-sdk/react";
+import { TextStreamChatTransport } from "ai";
 import { useState } from "react";
 
-// 定义消息的 TypeScript 类型，严谨的工程习惯
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
-
 export default function Home() {
-  // 状态管理：存放整个多轮对话的历史记录
-  const [messages, setMessages] = useState<Message[]>([]);
-  // 状态管理：当前输入框里的文字
+  // 由于新版 AI SDK 5.0+ / 4.x useChat 底层基于 Transport 架构，不再提供内置的 input 状态管理
+  // 我们在本地使用 useState 管理输入框文本
   const [input, setInput] = useState("");
-  // 状态管理：是否正在等待 AI 回复
-  const [isLoading, setIsLoading] = useState(false);
 
-  const sendMessage = async () => {
-    // 阻止发送空消息
-    if (!input.trim()) return;
+  // 使用 TextStreamChatTransport 接入 Python 后端的非 Vercel 标准 SSE 流
+  const { messages, sendMessage, status } = useChat({
+    transport: new TextStreamChatTransport({
+      api: "http://127.0.0.1:8000/api/v1/chat", // 绕过 Next.js 代理，直连避免被 Next dev server 缓冲拦截
+      fetch: async (url: string | URL | Request, options?: RequestInit) => {
+        // 适配器逻辑：拦截并转换请求体。将新版 AI SDK 传出的 parts 数组扁平化还原为后端 Pydantic 期待的 content 字段
+        if (options && options.body && typeof options.body === "string") {
+          try {
+            const bodyData = JSON.parse(options.body);
+            if (bodyData && Array.isArray(bodyData.messages)) {
+              bodyData.messages = bodyData.messages.map((msg: any) => {
+                let content = msg.content || "";
+                if (!content && Array.isArray(msg.parts)) {
+                  content = msg.parts
+                    .filter((part: any) => part.type === "text")
+                    .map((part: any) => part.text)
+                    .join("");
+                }
+                return {
+                  role: msg.role,
+                  content: content,
+                };
+              });
+              options.body = JSON.stringify(bodyData);
+            }
+          } catch (e) {
+            console.error("解析请求体失败:", e);
+          }
+        }
 
-    // 1. 将用户的输入立马追加到页面上
-    const newMessages: Message[] = [...messages, { role: "user", content: input }];
-    setMessages(newMessages);
-    setInput(""); // 清空输入框
-    setIsLoading(true);
+        const response = await fetch(url, options);
+        if (!response.ok) return response;
 
-    try {
-      // 2. 发起请求。这里不会跨域，因为我们在 next.config.mjs 做了反向代理！
-      const res = await fetch("/api/v1/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // 将整个对话数组发给后端（无状态架构的核心）
-        body: JSON.stringify({ messages: newMessages }),
-      });
+        const reader = response.body?.getReader();
+        if (!reader) return response;
 
-      const data = await res.json();
-      
-      // 3. 拿到后端结果，追加到消息列表中
-      if (data.status === "success") {
-        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-      }
-    } catch (error) {
-      console.error("请求失败:", error);
-      // 真实业务中这里应该有个 Toast 提示，MVP 阶段我们暂且略过
-    } finally {
-      setIsLoading(false);
-    }
+        const decoder = new TextDecoder();
+        const encoder = new TextEncoder();
+
+        // 构造自定义纯文本流以适配 TextStreamChatTransport
+        const customStream = new ReadableStream({
+          async start(controller) {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const textChunk = decoder.decode(value, { stream: true });
+                const lines = textChunk.split("\n");
+
+                for (const line of lines) {
+                  const trimmed = line.trim();
+                  if (trimmed.startsWith("data: ")) {
+                    const data = trimmed.slice(6);
+                    if (data === "[DONE]") {
+                      continue;
+                    }
+                    try {
+                      // 解析还原后端 json.dumps 转义后的文本内容
+                      const content = JSON.parse(data);
+                      if (typeof content === "string") {
+                        controller.enqueue(encoder.encode(content));
+                      } else if (content && content.error) {
+                        controller.enqueue(encoder.encode(`Error: ${content.error}`));
+                      }
+                    } catch (e) {
+                      controller.enqueue(encoder.encode(data));
+                    }
+                  }
+                }
+              }
+              controller.close();
+            } catch (error) {
+              controller.error(error);
+            }
+          },
+        });
+
+        return new Response(customStream, {
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      },
+    }),
+  });
+
+  const isLoading = status === "submitted" || status === "streaming";
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    // 使用 sendMessage 发送文本
+    sendMessage({ text: input });
+    setInput("");
   };
 
   return (
@@ -66,21 +121,47 @@ export default function Home() {
               写下你此刻的想法或情绪，我们开始梳理。
             </div>
           ) : (
-            messages.map((msg, index) => (
-              <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div 
-                  className={`max-w-[80%] p-3 rounded-2xl ${
-                    msg.role === "user" 
-                      ? "bg-blue-600 text-white rounded-br-none" 
-                      : "bg-gray-100 text-gray-800 rounded-bl-none"
-                  }`}
-                >
-                  {msg.content}
+            messages.map((msg, index) => {
+              // 获取所有的可见文本内容，剥离空格和不可见字符
+              const partsText = msg.parts ? msg.parts.filter((p: any) => p.type === "text").map((p: any) => p.text).join("") : "";
+              const displayedText = partsText.replace(/[\s\u200B-\u200D\uFEFF]/g, "");
+              
+              // 只要 assistant 气泡没有任何有效文字，就一律显示脉冲动画
+              if (msg.role === "assistant" && !displayedText) {
+                return (
+                  <div key={index} className="flex justify-start">
+                    <div className="bg-gray-100 text-gray-500 p-3 rounded-2xl rounded-bl-none text-sm animate-pulse">
+                      正在倾听并思考...
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div 
+                    className={`max-w-[80%] p-3 rounded-2xl ${
+                      msg.role === "user" 
+                        ? "bg-blue-600 text-white rounded-br-none" 
+                        : "bg-gray-100 text-gray-800 rounded-bl-none"
+                    }`}
+                  >
+                    {/* 如果存在 parts 优先渲染 parts */}
+                    {msg.parts && msg.parts.length > 0 ? (
+                      msg.parts.map((part: any, partIdx: number) => {
+                        if (part.type === "text") {
+                          return <span key={partIdx}>{part.text}</span>;
+                        }
+                        return null;
+                      })
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
-          {isLoading && (
+          {/* 补充兜底：如果连空的 assistant 消息都还没被加入列表，也展示脉冲动画 */}
+          {isLoading && messages[messages.length - 1]?.role === "user" && (
             <div className="flex justify-start">
               <div className="bg-gray-100 text-gray-500 p-3 rounded-2xl rounded-bl-none text-sm animate-pulse">
                 正在倾听并思考...
@@ -90,24 +171,23 @@ export default function Home() {
         </div>
 
         {/* 输入区 */}
-        <div className="p-4 border-t border-gray-100 flex gap-2">
+        <form onSubmit={handleSubmit} className="p-4 border-t border-gray-100 flex gap-2">
           <input
             type="text"
             className="flex-1 border border-gray-200 rounded-full px-4 py-2 focus:outline-none focus:border-blue-500"
             placeholder="描述一下让你困扰的事件或情绪..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             disabled={isLoading}
           />
           <button
-            onClick={sendMessage}
+            type="submit"
             disabled={isLoading || !input.trim()}
             className="bg-blue-600 text-white px-6 py-2 rounded-full font-medium hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
           >
             发送
           </button>
-        </div>
+        </form>
 
       </div>
     </main>
