@@ -5,6 +5,9 @@ import { TextStreamChatTransport } from "ai";
 import { useState } from "react";
 
 export default function Home() {
+  // 生成客户端主导的 Session ID
+  const [sessionId] = useState(() => crypto.randomUUID());
+  
   // 由于新版 AI SDK 5.0+ / 4.x useChat 底层基于 Transport 架构，不再提供内置的 input 状态管理
   // 我们在本地使用 useState 管理输入框文本
   const [input, setInput] = useState("");
@@ -18,21 +21,26 @@ export default function Home() {
         if (options && options.body && typeof options.body === "string") {
           try {
             const bodyData = JSON.parse(options.body);
-            if (bodyData && Array.isArray(bodyData.messages)) {
-              bodyData.messages = bodyData.messages.map((msg: any) => {
-                let content = msg.content || "";
-                if (!content && Array.isArray(msg.parts)) {
-                  content = msg.parts
-                    .filter((part: any) => part.type === "text")
-                    .map((part: any) => part.text)
-                    .join("");
+            if (bodyData && Array.isArray(bodyData.messages) && bodyData.messages.length > 0) {
+              // 提取最后一条用户消息
+              const lastMsg = bodyData.messages[bodyData.messages.length - 1];
+              let content = lastMsg.content || "";
+              if (!content && Array.isArray(lastMsg.parts)) {
+                content = lastMsg.parts
+                  .filter((part: any) => part.type === "text")
+                  .map((part: any) => part.text)
+                  .join("");
+              }
+              
+              // 组装符合后端新架构的 Payload
+              const newBody = {
+                session_id: sessionId,
+                message: {
+                  role: lastMsg.role,
+                  content: content
                 }
-                return {
-                  role: msg.role,
-                  content: content,
-                };
-              });
-              options.body = JSON.stringify(bodyData);
+              };
+              options.body = JSON.stringify(newBody);
             }
           } catch (e) {
             console.error("解析请求体失败:", e);
