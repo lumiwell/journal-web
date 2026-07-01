@@ -1,5 +1,11 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# Journal Web - 前端开发规范 (Agent Rules)
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+在处理 `journal-web` 项目时，必须严格遵守以下约定：
+
+## 1. 框架与路由机制 (Next.js App Router)
+*   **非传统 Next.js**：本项目使用最新的 Next.js App Router 架构。API、约定和文件结构与旧版 Pages Router 完全不同。注意查阅文档和弃用警告。
+*   **动态路由参数解析**：在动态路由页面（如 `app/history/[diary_id]/page.tsx`）中，由于 Next.js 15+ 的变更，`params` 是一个 Promise，必须使用 `React.use(params)` 进行解包后才能读取（如 `use(params).diary_id`）。
+
+## 2. UI/UX 与错误兜底
+*   **优雅降级 (Graceful Degradation)**：当通过 API 请求数据失败（如返回 404 / 403 时），**严禁**渲染生硬的空白聊天框或直接导致页面崩溃闪退。必须在 UI 层面捕获异常（如使用 `loadError` 状态），并渲染一个居中、带有引导返回按钮的优雅缺省页（“日记不存在或无权访问”）。
+*   **按钮防抖与状态流转**：任何触发后端高耗时操作的按钮（如“生成日记”），其 Disabled 状态必须严密受控。例如：在空页面或没有新对话时，按钮必须默认置灰（不可点击），直到产生新交互后才点亮。
