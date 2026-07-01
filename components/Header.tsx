@@ -8,8 +8,9 @@ export default function Header() {
 
   return (
     <header className="w-full bg-white border-b border-gray-100 shadow-sm p-4 flex justify-between items-center z-10 relative">
-      <div className="font-bold text-xl text-gray-800">
+      <div className="font-bold text-xl text-gray-800 flex items-center gap-6">
         <Link href="/">Journal</Link>
+        <Link href="/history" className="text-sm text-gray-500 hover:text-gray-900 font-normal">历史日记</Link>
       </div>
       <div>
         {!loading && (

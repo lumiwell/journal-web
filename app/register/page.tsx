@@ -32,8 +32,13 @@ export default function RegisterPage() {
         throw new Error(data.detail || "Registration failed");
       }
 
-      const { access_token } = await response.json();
+      const { access_token, session_id } = await response.json();
       Cookies.set("auth_token", access_token, { expires: 7 }); // 7 days
+
+      // Update the guest_session_id cookie so the frontend points to the merged main timeline
+      if (session_id) {
+        Cookies.set("guest_session_id", session_id, { expires: 365, path: "/" });
+      }
 
       // Hard refresh to reload layout and fetch user
       window.location.href = "/";
