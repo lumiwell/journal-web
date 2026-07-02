@@ -7,10 +7,10 @@ export default function Header() {
   const { user, loading, logout } = useAuth();
 
   return (
-    <header className="w-full bg-white border-b border-gray-100 shadow-sm p-4 flex justify-between items-center z-10 relative">
-      <div className="font-bold text-xl text-gray-800 flex items-center gap-6">
+    <header className="fixed top-0 left-0 w-full h-[70px] bg-white/80 backdrop-blur-md border-b border-sage-light/30 shadow-sm p-4 flex justify-between items-center z-50">
+      <div className="font-bold text-xl text-sage-dark flex items-center gap-6">
         <Link href="/">Journal</Link>
-        <Link href="/history" className="text-sm text-gray-500 hover:text-gray-900 font-normal">历史日记</Link>
+        <Link href="/chat" className="text-sm text-sage-muted hover:text-sage-primary font-normal transition-colors">今日觉察</Link>
       </div>
       <div>
         {!loading && (
@@ -26,16 +26,16 @@ export default function Header() {
                 </button>
               </div>
             ) : (
-              <div className="flex gap-4">
+              <div className="flex items-center gap-4">
                 <Link
                   href="/login"
-                  className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+                  className="text-sm text-sage-dark hover:text-sage-primary font-medium transition-colors"
                 >
                   登录
                 </Link>
                 <Link
                   href="/register"
-                  className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-full hover:bg-blue-700 font-medium"
+                  className="text-sm bg-sage-primary text-white px-4 py-1.5 rounded-full hover:bg-sage-dark font-medium transition-colors shadow-sm"
                 >
                   注册
                 </Link>

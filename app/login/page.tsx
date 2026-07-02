@@ -52,33 +52,33 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-65px)] items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-xl shadow-lg">
+    <div className="flex-1 w-full flex flex-col items-center bg-background p-4 pt-[90px] min-h-0 overflow-y-auto">
+      <div className="w-full max-w-md space-y-8 bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-sm border border-white/50">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-medium tracking-wide text-sage-dark">
             登录你的账户
           </h2>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">{error}</div>}
+          {error && <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-2xl">{error}</div>}
           <div className="space-y-4 rounded-md shadow-sm">
             <div>
-              <label className="block text-sm font-medium text-gray-700">邮箱</label>
+              <label className="block text-sm font-medium text-sage-dark">邮箱</label>
               <input
                 type="email"
                 required
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                className="mt-1 block w-full rounded-2xl border border-sage-light/50 bg-white/50 px-4 py-2.5 text-sage-dark placeholder-sage-muted focus:border-sage-primary focus:outline-none focus:ring-1 focus:ring-sage-primary transition-colors sm:text-sm"
                 placeholder="hello@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">密码</label>
+              <label className="block text-sm font-medium text-sage-dark">密码</label>
               <input
                 type="password"
                 required
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                className="mt-1 block w-full rounded-2xl border border-sage-light/50 bg-white/50 px-4 py-2.5 text-sage-dark placeholder-sage-muted focus:border-sage-primary focus:outline-none focus:ring-1 focus:ring-sage-primary transition-colors sm:text-sm"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -90,7 +90,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative flex w-full justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-300"
+              className="group relative flex w-full justify-center rounded-full border border-transparent bg-sage-primary py-2.5 px-4 text-sm font-medium text-white hover:bg-sage-dark focus:outline-none focus:ring-2 focus:ring-sage-primary focus:ring-offset-2 disabled:opacity-50 transition-colors shadow-sm"
             >
               {loading ? "登录中..." : "登录"}
             </button>
