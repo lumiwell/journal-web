@@ -8,6 +8,7 @@ import { fetchWithAuth } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Sparkles, Loader2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 // ==========================================
 // 🕒 情绪断代时间配置（方便本地测试）
@@ -21,7 +22,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   const [input, setInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStepIdx, setGenerationStepIdx] = useState(0);
-  const [backgroundGenerating, setBackgroundGenerating] = useState(false);
+  const { isExtractingDiary: backgroundGenerating, setIsExtractingDiary: setBackgroundGenerating } = useAuth();
   const [errorMsg, setErrorMsg] = useState("");
   const [showCurtain, setShowCurtain] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -172,8 +173,12 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           const now = Date.now();
           
           let lastActiveTime = lastTime;
-          // We already filtered by dismissedAt, so we don't need to override lastActiveTime
-          // unless the user hasn't sent any messages since dismissing the curtain (which means filteredData is empty anyway, and we wouldn't be in this if block).
+          const acknowledgedAtStr = sessionStorage.getItem(`curtain_acknowledged_${sessionId}`);
+          const acknowledgedAt = acknowledgedAtStr ? parseInt(acknowledgedAtStr, 10) : 0;
+          
+          if (acknowledgedAt > lastTime) {
+            lastActiveTime = acknowledgedAt;
+          }
           
           const idleTime = now - lastActiveTime;
           const ageTime = now - firstTime;
@@ -245,6 +250,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           console.error(err);
         }).finally(() => {
           setBackgroundGenerating(false);
+          window.dispatchEvent(new CustomEvent("refresh_diaries"));
         });
       } else {
         fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, {
@@ -327,6 +333,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
 
   const handleDismissCurtain = () => {
     setShowCurtain(false);
+    sessionStorage.setItem(`curtain_acknowledged_${sessionId}`, Date.now().toString());
   };
 
   const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
@@ -396,17 +403,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         className="w-full max-w-2xl bg-white/80 backdrop-blur-xl rounded-3xl shadow-sm shadow-sage-primary/10 flex flex-col flex-1 min-h-0 border border-white/50 mb-4 relative overflow-hidden"
       >
         <AnimatePresence>
-          {backgroundGenerating && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="bg-sage-primary/90 backdrop-blur-md text-white text-[13px] font-medium py-2 px-4 text-center flex items-center justify-center gap-2 z-50 relative"
-            >
-              <Loader2 size={14} className="animate-spin" />
-              <span>正在为你萃取并封存过往的心绪...</span>
-            </motion.div>
-          )}
+          {/* 全局的进度胶囊已移至 Header.tsx */}
         </AnimatePresence>
         
         {showCurtain && (
@@ -528,12 +525,12 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
               if (msg.role === "assistant" && !displayedText) {
                 return (
                   <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
-                    <div className="flex items-center gap-1.5 text-sage-muted p-4 text-[13px] tracking-wide">
-                      <span className="opacity-80">我正在认真倾听</span>
-                      <div className="flex gap-1 items-center">
-                        <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity, delay: 0 }} className="w-[3px] h-[3px] rounded-full bg-sage-primary"></motion.div>
-                        <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity, delay: 0.3 }} className="w-[3px] h-[3px] rounded-full bg-sage-primary"></motion.div>
-                        <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity, delay: 0.6 }} className="w-[3px] h-[3px] rounded-full bg-sage-primary"></motion.div>
+                    <div className="flex items-center gap-2 text-sage-muted px-1 py-4 text-[15px] tracking-wide">
+                      <span className="opacity-80">倾听中</span>
+                      <div className="flex gap-1.5 items-center">
+                        <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
+                        <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
+                        <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
                       </div>
                     </div>
                   </motion.div>
@@ -574,12 +571,12 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           )}
           {isLoading && messages[messages.length - 1]?.role === "user" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
-              <div className="flex items-center gap-1.5 text-sage-muted p-4 text-[13px] tracking-wide">
-                <span className="opacity-80">正在倾听并理解</span>
-                <div className="flex gap-1 items-center">
-                  <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity, delay: 0 }} className="w-[3px] h-[3px] rounded-full bg-sage-primary"></motion.div>
-                  <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity, delay: 0.3 }} className="w-[3px] h-[3px] rounded-full bg-sage-primary"></motion.div>
-                  <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity, delay: 0.6 }} className="w-[3px] h-[3px] rounded-full bg-sage-primary"></motion.div>
+              <div className="flex items-center gap-2 text-sage-muted px-1 py-4 text-[15px] tracking-wide">
+                <span className="opacity-80">倾听中</span>
+                <div className="flex gap-1.5 items-center">
+                  <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
+                  <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
+                  <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
                 </div>
               </div>
             </motion.div>
@@ -599,7 +596,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
                 rows={1}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                disabled={isLoading || isGenerating}
+                disabled={isGenerating}
               />
             </div>
             <button

@@ -13,17 +13,22 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   logout: () => void;
+  isExtractingDiary: boolean;
+  setIsExtractingDiary: (value: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   logout: () => {},
+  isExtractingDiary: false,
+  setIsExtractingDiary: () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isExtractingDiary, setIsExtractingDiary] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -54,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{ user, loading, logout, isExtractingDiary, setIsExtractingDiary }}>
       {children}
     </AuthContext.Provider>
   );

@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // 允许本地局域网 IP 访问 Dev Server 以进行跨域热更新
+  allowedDevOrigins: ['192.168.32.133'],
 };
 
 export default nextConfig;

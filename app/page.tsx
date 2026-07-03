@@ -40,7 +40,15 @@ export default function HistoryPage() {
         setLoading(false);
       }
     }
+    
     loadDiaries();
+
+    // 监听全局刷新事件
+    const handleRefresh = () => {
+      loadDiaries();
+    };
+    window.addEventListener("refresh_diaries", handleRefresh);
+    return () => window.removeEventListener("refresh_diaries", handleRefresh);
   }, []);
 
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
@@ -49,20 +57,33 @@ export default function HistoryPage() {
   const groupedDiariesEntries = useMemo(() => {
     const groups = diaries.reduce((acc, diary) => {
       const date = new Date(diary.created_at + "Z");
-      const dateStr = date.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
-      if (!acc[dateStr]) acc[dateStr] = [];
-      acc[dateStr].push(diary);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`; // 本地时区的 YYYY-MM-DD
+      
+      if (!acc[dateKey]) {
+        acc[dateKey] = {
+          month: (date.getMonth() + 1) + "月",
+          day: date.getDate().toString().padStart(2, '0'),
+          weekday: date.toLocaleDateString("zh-CN", { weekday: "short" }),
+          diaries: []
+        };
+      }
+      acc[dateKey].diaries.push(diary);
       return acc;
-    }, {} as Record<string, Diary[]>);
-    return Object.entries(groups);
+    }, {} as Record<string, { month: string, day: string, weekday: string, diaries: Diary[] }>);
+    
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
   }, [diaries]);
+
 
   useEffect(() => {
     if (groupedDiariesEntries.length > 0 && !isExpandedInit) {
       const initialExpanded = new Set<string>();
       // 默认展开最近的 3 天
-      groupedDiariesEntries.slice(0, 3).forEach(([dateStr]) => {
-        initialExpanded.add(dateStr);
+      groupedDiariesEntries.slice(0, 3).forEach(([dateKey]) => {
+        initialExpanded.add(dateKey);
       });
       setExpandedDays(initialExpanded);
       setIsExpandedInit(true);
@@ -92,7 +113,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <main className="flex-1 w-full flex flex-col items-center bg-background p-4 pt-[90px] font-sans relative overflow-x-hidden overflow-y-auto">
+    <main id="main-scroll-container" className="flex-1 w-full flex flex-col items-center bg-background p-4 pt-[90px] font-sans relative overflow-x-hidden overflow-y-auto">
       {/* 极微弱的背景光晕 */}
       <div className="absolute top-0 left-0 w-full h-[30vh] bg-gradient-to-b from-sage-light/40 to-transparent -z-10" />
 
@@ -102,7 +123,7 @@ export default function HistoryPage() {
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             className="bg-sage-light/30 border border-sage-light text-sage-dark px-4 py-3 rounded-2xl mb-8 text-sm text-center shadow-sm"
           >
-            当前为匿名模式，数据仅存本地，<button onClick={() => router.push('/register')} className="font-semibold underline decoration-sage-primary/30 underline-offset-4">注册</button>以永久云端保存你的心境轨迹。
+            当前为匿名模式，数据仅存本地，<button onClick={() => router.push(`/register?returnTo=%2F`)} className="font-semibold underline decoration-sage-primary/30 underline-offset-4 cursor-pointer">注册</button>以永久云端保存你的心境轨迹。
           </motion.div>
         )}
 
@@ -174,20 +195,28 @@ export default function HistoryPage() {
             className="mt-6 pb-10"
           >
 
-            {groupedDiariesEntries.map(([dateStr, dayDiaries]) => {
-              const isExpanded = expandedDays.has(dateStr);
+            {groupedDiariesEntries.map(([dateKey, groupData]) => {
+              const isExpanded = expandedDays.has(dateKey);
+              const { month, day, weekday, diaries: dayDiaries } = groupData;
               return (
-              <div key={dateStr} className="mb-8">
+              <div key={dateKey} className="mb-6 pb-6 border-b border-sage-light/20 last:border-b-0">
                 {/* 日期头部，作为可点击的折叠开关 */}
                 <motion.div variants={itemVariants}>
                   <button 
-                    onClick={() => toggleDay(dateStr)}
-                    className="flex items-center gap-3 w-full group text-left cursor-pointer"
+                    onClick={() => toggleDay(dateKey)}
+                    className="flex items-center justify-between w-full group text-left cursor-pointer bg-transparent border-none p-0"
                   >
-                    <h3 className="text-[19px] sm:text-xl font-bold text-sage-dark tracking-wide group-hover:text-sage-primary transition-colors">
-                      {dateStr}
-                    </h3>
-                    <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[34px] sm:text-[38px] font-light text-sage-dark tracking-tighter w-10 text-center opacity-90 group-hover:opacity-100 transition-opacity">
+                        {day}
+                      </span>
+                      <div className="flex flex-col text-[12px] sm:text-[13px] text-sage-muted tracking-widest uppercase pb-0.5">
+                         <span className="font-semibold text-sage-dark/80">{month}</span>
+                         <span>{weekday}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                       <span className="text-xs font-medium text-sage-dark/80 bg-sage-light/40 px-2.5 py-0.5 rounded-full">{dayDiaries.length} 篇</span>
                       {isExpanded ? <ChevronDown size={18} className="text-sage-dark/80" /> : <ChevronRight size={18} className="text-sage-dark/80" />}
                     </div>
@@ -252,15 +281,15 @@ export default function HistoryPage() {
       {!loading && diaries.length > 0 && (
         <Link href="/chat">
           <motion.div 
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            initial={{ y: 50, opacity: 0, x: "-50%" }}
+            animate={{ y: 0, opacity: 1, x: "-50%" }}
             transition={{ type: "spring", stiffness: 200, damping: 20, delay: 0.5 }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="fixed bottom-8 right-8 w-16 h-16 bg-sage-primary text-white rounded-full shadow-lg shadow-sage-primary/30 flex items-center justify-center cursor-pointer hover:bg-sage-dark transition-colors z-50 group"
+            className="fixed bottom-10 left-1/2 px-6 py-3.5 bg-sage-primary/95 backdrop-blur-md text-white rounded-full shadow-xl shadow-sage-primary/30 flex items-center justify-center gap-2 cursor-pointer hover:bg-sage-dark transition-all duration-300 z-50 group"
           >
-            <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:animate-ping transition-all"></div>
-            <Plus size={28} className="relative z-10" />
+            <Plus size={20} className="relative z-10" strokeWidth={2.5} />
+            <span className="font-semibold text-[15px] tracking-widest relative z-10">记录</span>
           </motion.div>
         </Link>
       )}
