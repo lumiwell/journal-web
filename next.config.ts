@@ -11,7 +11,9 @@ const nextConfig: NextConfig = {
     ];
   },
   // 允许本地局域网 IP 访问 Dev Server 以进行跨域热更新
-  allowedDevOrigins: ['192.168.32.133'],
+  allowedDevOrigins: ['10.177.251.241'],
+  // 禁用左下角/右下角的黑色 N 图标（开发编译指示器）
+  devIndicators: false,
 };
 
 export default nextConfig;

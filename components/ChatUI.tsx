@@ -1,13 +1,13 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { TextStreamChatTransport } from "ai";
+import { DefaultChatTransport } from "ai";
 import { useState, useEffect, useRef } from "react";
 import Cookies from "js-cookie";
 import { fetchWithAuth } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Loader2 } from "lucide-react";
+import { Send, Sparkles, Loader2, ChevronLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 // ==========================================
@@ -52,88 +52,58 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   const isInitialScroll = useRef(true);
 
   const { messages, setMessages, sendMessage, status } = useChat({
-    transport: new TextStreamChatTransport({
-      api: "http://127.0.0.1:8000/api/v1/chat",
-      fetch: async (url: string | URL | Request, options?: RequestInit) => {
-        const fetchOptions = options ?? {};
-        if (fetchOptions.body && typeof fetchOptions.body === "string") {
-          try {
-            const bodyData = JSON.parse(fetchOptions.body);
-            if (bodyData && Array.isArray(bodyData.messages) && bodyData.messages.length > 0) {
-              const lastMsg = bodyData.messages[bodyData.messages.length - 1];
-              let content = lastMsg.content || "";
-              if (!content && Array.isArray(lastMsg.parts)) {
-                content = lastMsg.parts
-                  .filter((part: any) => part.type === "text")
-                  .map((part: any) => part.text)
-                  .join("");
-              }
-              const newBody = {
-                session_id: sessionId,
-                message: { role: lastMsg.role, content: content }
-              };
-              fetchOptions.body = JSON.stringify(newBody);
+    api: "/api/v1/chat",
+    fetch: async (url: string | URL | Request, options?: RequestInit) => {
+      let requestUrl = typeof url === 'string' ? url : (url as any).url || url.toString();
+      let requestOptions = options ?? {};
+
+      // 如果 url 本身是 Request 对象，将其拆解
+      if (typeof url === 'object' && 'url' in url) {
+        requestOptions = {
+          method: url.method,
+          headers: url.headers,
+          body: await url.clone().text(),
+          ...options
+        };
+      }
+
+      if (requestOptions.body && typeof requestOptions.body === "string") {
+        try {
+          const bodyData = JSON.parse(requestOptions.body);
+          if (bodyData && Array.isArray(bodyData.messages) && bodyData.messages.length > 0) {
+            const lastMsg = bodyData.messages[bodyData.messages.length - 1];
+            let content = lastMsg.content || "";
+            if (!content && Array.isArray(lastMsg.parts)) {
+              content = lastMsg.parts
+                .filter((part: any) => part.type === "text")
+                .map((part: any) => part.text)
+                .join("");
             }
-          } catch (e) {
-            console.error("解析请求体失败:", e);
+            const newBody = {
+              session_id: sessionId,
+              message: { role: lastMsg.role, content: content }
+            };
+            requestOptions.body = JSON.stringify(newBody);
           }
+        } catch (e) {
+          console.error("解析请求体失败:", e);
         }
-        const token = Cookies.get("auth_token");
-        if (token) {
-          const headers = new Headers(fetchOptions.headers);
-          headers.set("Authorization", `Bearer ${token}`);
-          fetchOptions.headers = headers;
-        }
+      }
 
-        const response = await fetch(url, fetchOptions);
-        if (!response.ok) return response;
+      let targetUrl = requestUrl;
+      if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+        targetUrl = `${window.location.protocol}//${window.location.hostname}:8000/api/v1/chat`;
+      }
 
-        const reader = response.body?.getReader();
-        if (!reader) return response;
+      const token = Cookies.get("auth_token");
+      if (token) {
+        const headers = new Headers(requestOptions.headers);
+        headers.set("Authorization", `Bearer ${token}`);
+        requestOptions.headers = headers;
+      }
 
-        const decoder = new TextDecoder();
-        const encoder = new TextEncoder();
-
-        const customStream = new ReadableStream({
-          async start(controller) {
-            try {
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const textChunk = decoder.decode(value, { stream: true });
-                const lines = textChunk.split("\n");
-
-                for (const line of lines) {
-                  const trimmed = line.trim();
-                  if (trimmed.startsWith("data: ")) {
-                    const data = trimmed.slice(6);
-                    if (data === "[DONE]") continue;
-                    try {
-                      const content = JSON.parse(data);
-                      if (typeof content === "string") {
-                        controller.enqueue(encoder.encode(content));
-                      } else if (content && content.error) {
-                        controller.enqueue(encoder.encode(`Error: ${content.error}`));
-                      }
-                    } catch (e) {
-                      controller.enqueue(encoder.encode(data));
-                    }
-                  }
-                }
-              }
-              controller.close();
-            } catch (error) {
-              controller.error(error);
-            }
-          },
-        });
-
-        return new Response(customStream, {
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
-        });
-      },
-    }),
+      return fetch(targetUrl, requestOptions);
+    },
   });
 
   const [loadError, setLoadError] = useState(false);
@@ -155,13 +125,8 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
 
         const hasUnprocessed = data.some((msg: any) => msg.role === "user" && !msg.diary_id);
 
-        const dismissedAtStr = sessionStorage.getItem(`curtain_dismissed_${sessionId}`);
-        const dismissedAt = dismissedAtStr ? parseInt(dismissedAtStr, 10) : 0;
-
-        const filteredData = data.filter((msg: any) => {
-          const msgTime = new Date(msg.created_at.endsWith("Z") ? msg.created_at : msg.created_at + "Z").getTime();
-          return msgTime >= dismissedAt; // Use >= so that if they start a new chapter, new messages are shown
-        });
+        // 移除导致本地时间偏差导致消息消失的 buggy 过滤
+        const filteredData = data;
 
         let willShowCurtain = false;
 
@@ -383,7 +348,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   }, [messages, isInitializing]);
 
   return (
-    <main className="flex-1 min-h-0 flex flex-col items-center bg-background p-4 pt-[90px] font-sans relative w-full overflow-hidden">
+    <main className="flex-1 min-h-0 flex flex-col items-center bg-background sm:p-4 font-sans relative w-full overflow-hidden">
       {/* 极微弱的背景呼吸光晕 */}
       <motion.div 
         animate={{ opacity: [0.3, 0.5, 0.3], scale: [1, 1.05, 1] }}
@@ -400,7 +365,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         initial={{ opacity: 0 }} 
         animate={{ opacity: isInitializing ? 0 : 1 }} 
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-2xl bg-white/80 backdrop-blur-xl rounded-3xl shadow-sm shadow-sage-primary/10 flex flex-col flex-1 min-h-0 border border-white/50 mb-4 relative overflow-hidden"
+        className="w-full max-w-2xl bg-white/90 sm:bg-white/80 backdrop-blur-xl sm:rounded-3xl sm:shadow-sm sm:shadow-sage-primary/10 flex flex-col flex-1 min-h-0 sm:border border-white/50 sm:mb-4 relative overflow-hidden"
       >
         <AnimatePresence>
           {/* 全局的进度胶囊已移至 Header.tsx */}
@@ -478,21 +443,23 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           </div>
         )}
 
-        <div className={`p-5 border-b border-sage-light/30 flex justify-between items-center relative z-10 transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
-          <div>
-            <h1 className="text-xl font-medium text-sage-dark tracking-wide">Journal</h1>
-            <p className="text-xs text-sage-muted mt-0.5">今天过得好吗？</p>
-          </div>
+        <div className={`py-1.5 px-3 sm:py-2.5 sm:px-4 border-b border-sage-light/30 flex justify-between items-center relative z-10 bg-white/50 backdrop-blur-md transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
+          <button 
+            onClick={() => router.push('/')}
+            className="p-1 -ml-1 text-sage-dark/70 hover:text-sage-dark transition-colors"
+          >
+            <ChevronLeft size={26} />
+          </button>
           <button 
             onClick={() => handleGenerateDiary(false)}
             disabled={isGenerating || isLoading || !canGenerate}
-            className={`flex items-center gap-2 text-sm bg-sage-light/50 text-sage-dark px-5 py-2.5 rounded-full font-medium transition-all duration-300 shadow-sm ${
+            className={`flex items-center gap-1.5 text-[14px] sm:text-[15px] text-sage-dark font-medium transition-all duration-300 ${
               (canGenerate && !isGenerating && !isLoading) 
-                ? "hover:bg-sage-light/80 cursor-pointer shadow-sage-primary/20 hover:shadow-md hover:scale-105" 
+                ? "hover:text-sage-primary cursor-pointer hover:scale-105" 
                 : "opacity-40 cursor-not-allowed"
             }`}
           >
-            {isGenerating ? "正在沉淀..." : <><Sparkles size={16} /> 生成日记</>}
+            {isGenerating ? "正在生成..." : <><Sparkles size={16} /> 生成日记</>}
           </button>
         </div>
 
@@ -523,10 +490,20 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
               const displayedText = partsText.replace(/[\s\u200B-\u200D\uFEFF]/g, "");
               
               if (msg.role === "assistant" && !displayedText) {
+                // 如果后端已经停止生成（无论是报错还是断开），就不应该再显示“倾听中”
+                if (status !== "submitted" && status !== "streaming" && status !== "loading") {
+                  return (
+                    <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
+                      <div className="flex items-center gap-2 text-red-500/70 px-1 py-4 text-[13px] tracking-wide">
+                        ⚠️ 接收中止，未返回有效内容
+                      </div>
+                    </motion.div>
+                  );
+                }
                 return (
                   <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
                     <div className="flex items-center gap-2 text-sage-muted px-1 py-4 text-[15px] tracking-wide">
-                      <span className="opacity-80">倾听中</span>
+                      <span className="opacity-80 text-[13px]">倾听中</span>
                       <div className="flex gap-1.5 items-center">
                         <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
                         <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
@@ -547,19 +524,19 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
                   className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                 >
                   <div 
-                    className={`max-w-[85%] p-4 text-[15px] leading-relaxed shadow-sm ${
+                    className={`max-w-[92%] sm:max-w-[85%] px-4 py-3 text-[15px] leading-relaxed ${
                       isUser 
                         ? "bg-sage-light text-sage-dark rounded-3xl rounded-br-md" 
-                        : "bg-transparent text-foreground rounded-3xl px-1"
+                        : "bg-white text-sage-dark rounded-3xl rounded-bl-md shadow-sm border border-sage-light/30"
                     }`}
                   >
                     {msg.parts && msg.parts.length > 0 ? (
                       msg.parts.map((part: any, partIdx: number) => {
-                        if (part.type === "text") return <span key={partIdx}>{part.text}</span>;
+                        if (part.type === "text") return <span key={partIdx} style={{ whiteSpace: "pre-wrap" }}>{part.text}</span>;
                         return null;
                       })
                     ) : (
-                      <span>{(msg as any).content}</span>
+                      <span style={{ whiteSpace: "pre-wrap" }}>{(msg as any).content}</span>
                     )}
                   </div>
                 </motion.div>
@@ -572,7 +549,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           {isLoading && messages[messages.length - 1]?.role === "user" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
               <div className="flex items-center gap-2 text-sage-muted px-1 py-4 text-[15px] tracking-wide">
-                <span className="opacity-80">倾听中</span>
+                <span className="opacity-80 text-[13px]">倾听中</span>
                 <div className="flex gap-1.5 items-center">
                   <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
                   <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }} className="w-1 h-1 rounded-full bg-sage-primary/80"></motion.div>
@@ -584,17 +561,21 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
 
         </div>
 
-        <div className={`p-4 bg-white/50 backdrop-blur-md rounded-b-3xl transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
-          <form onSubmit={handleSubmit} className="flex gap-3 items-end">
-            <div className="flex-1 bg-white rounded-[24px] shadow-sm border border-sage-light/50 py-1.5 px-2">
+        <div className={`px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/70 sm:bg-white/50 backdrop-blur-md transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
+          <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+            <div className="flex-1 bg-white rounded-[20px] shadow-sm border border-sage-light/50 py-1 px-2">
               <textarea
                 ref={textareaRef}
-                className="w-full bg-transparent px-3 py-2 text-[15px] focus:outline-none placeholder-sage-muted text-sage-dark resize-none slim-scrollbar block leading-relaxed"
-                style={{ overflowY: 'hidden' }}
-                placeholder="记录此刻..."
+                className="w-full bg-transparent px-2 py-1.5 text-[15px] focus:outline-none placeholder-sage-muted text-sage-dark resize-none slim-scrollbar block leading-relaxed max-h-[120px]"
+                style={{ overflowY: 'auto' }}
+                placeholder="此刻的你在想些什么？"
                 value={input}
                 rows={1}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
                 onKeyDown={handleKeyDown}
                 disabled={isGenerating}
               />
@@ -602,9 +583,9 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
             <button
               type="submit"
               disabled={isLoading || isGenerating || !input.trim()}
-              className="bg-sage-primary text-white w-[48px] h-[48px] rounded-full hover:bg-sage-dark disabled:opacity-40 transition-colors flex items-center justify-center shrink-0 mb-1 shadow-sm"
+              className="bg-sage-primary text-white w-[38px] h-[38px] rounded-full hover:bg-sage-dark disabled:opacity-40 transition-colors flex items-center justify-center shrink-0 shadow-sm mb-0.5"
             >
-              <Send size={18} />
+              <Send size={16} className="-ml-0.5" />
             </button>
           </form>
         </div>
@@ -619,7 +600,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.8 }}
-            className="absolute inset-0 z-50 rounded-[32px] bg-white/70 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center"
+            className="absolute inset-0 z-50 bg-white/70 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center"
           >
             <motion.div
               key="generating"

@@ -1,7 +1,5 @@
 import Cookies from 'js-cookie';
-
-const API_BASE = 'http://127.0.0.1:8000';
-
+const API_BASE = '';
 export async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
   const token = Cookies.get('auth_token');
   const headers = new Headers(options.headers || {});

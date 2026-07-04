@@ -2,12 +2,18 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { usePathname } from "next/navigation";
 
 export default function Header() {
   const { user, loading, logout } = useAuth();
+  const pathname = usePathname();
+
+  if (pathname === "/chat") {
+    return null;
+  }
 
   return (
-    <header className="fixed top-0 left-0 w-full h-[70px] bg-white/80 backdrop-blur-md border-b border-sage-light/30 shadow-sm p-4 flex justify-between items-center z-50">
+    <header className="fixed top-0 left-0 w-full h-[54px] bg-white/80 backdrop-blur-md border-b border-sage-light/30 shadow-sm px-4 py-1.5 flex justify-between items-center z-50">
       <div className="font-bold text-xl text-sage-dark flex items-center gap-6">
         <Link href="/">Journal</Link>
         <Link href="/chat" className="text-sm text-sage-muted hover:text-sage-primary font-normal transition-colors">今日觉察</Link>
