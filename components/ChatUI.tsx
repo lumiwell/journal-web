@@ -443,7 +443,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           </div>
         )}
 
-        <div className={`py-1.5 px-3 sm:py-2.5 sm:px-4 border-b border-sage-light/30 flex justify-between items-center relative z-10 bg-white/50 backdrop-blur-md transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
+        <div className={`py-1.5 px-3 sm:py-2.5 sm:px-4 border-b border-sage-light/40 shadow-sm flex justify-between items-center relative z-20 bg-white/80 backdrop-blur-xl transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
           <button 
             onClick={() => router.push('/')}
             className="p-1 -ml-1 text-sage-dark/70 hover:text-sage-dark transition-colors"
