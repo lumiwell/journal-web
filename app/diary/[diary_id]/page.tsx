@@ -143,7 +143,7 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
             return (
               <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 <div 
-                  className={`max-w-[85%] p-4 text-[14px] leading-relaxed ${
+                  className={`max-w-[85%] p-4 text-[14px] leading-relaxed whitespace-pre-wrap ${
                     isUser 
                       ? "bg-sage-light/40 text-sage-dark rounded-3xl rounded-br-md border border-sage-light/20" 
                       : "bg-transparent text-sage-dark/80 rounded-3xl px-2"

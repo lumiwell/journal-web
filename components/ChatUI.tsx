@@ -181,16 +181,48 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
       }
 
       if (canGenerate) {
-        fetchWithAuth(`/api/v1/diary/generate?session_id=${sessionId}`, {
-          method: "POST"
-        }).then(res => {
-          // silently succeed
-        }).catch(err => {
-          console.error(err);
-        }).finally(() => {
+        const attemptBackgroundGenerate = async () => {
+          let isRunning = true;
+          // 最多轮询 15 次 (45秒)，防止无限死循环
+          let maxAttempts = 15;
+          while (isRunning && maxAttempts > 0) {
+            try {
+              const res = await fetchWithAuth(`/api/v1/diary/generate?session_id=${sessionId}`, {
+                method: "POST"
+              });
+              
+              if (res.ok) {
+                isRunning = false; // 正常成功
+              } else if (res.status === 400) {
+                // 如果后端明确说没有新消息，说明我们之前的某个超时请求已经成功把消息结晶成了日记！
+                const errData = await res.json().catch(() => ({}));
+                const detailStr = typeof errData.detail === 'string' ? errData.detail : "";
+                if (detailStr.includes("No new messages") || detailStr.includes("无可用的新消息")) {
+                  isRunning = false;
+                } else {
+                  console.error("Diary background generation error (400):", detailStr);
+                  isRunning = false;
+                }
+              } else {
+                // 收到 429(处理中), 500, 502, 504 或任何其他异常状态码：
+                // 这意味着要么后端还在生成，要么是前端网关代理异常/用户跳转导致请求被截断。
+                // 统统视为“未完成”，继续静默轮询！
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                maxAttempts--;
+              }
+            } catch (err) {
+              // 遭遇底层断网、或前端 Router 跳转导致 fetch aborted：不要放弃，后端极有可能还在跑。继续轮询。
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              maxAttempts--;
+            }
+          }
+          
+          // 彻底确认后端完工（或到达最大轮询次数）后，再关闭状态锁
           setBackgroundGenerating(false);
           window.dispatchEvent(new CustomEvent("refresh_diaries"));
-        });
+        };
+        
+        attemptBackgroundGenerate();
       } else {
         fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, {
           method: "DELETE"
@@ -213,19 +245,56 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
       const res = await fetchWithAuth(`/api/v1/diary/generate?session_id=${sessionId}`, {
         method: "POST"
       });
+      
       if (res.ok) {
         isSuccess = true;
         const diary = await res.json();
         router.push(`/diary/${diary.id}`);
+        return;
       } else if (res.status === 429) {
         setErrorMsg("日记正在生成中，请稍后再试...");
+        return;
+      } else if (res.status === 504 || res.status === 502) {
+        throw new Error("Proxy timeout"); // Will be caught and handled below
       } else {
         const errData = await res.json();
         const detailStr = typeof errData.detail === 'string' ? errData.detail : "无可用的新消息生成日记";
+        
+        // 如果后端发现没有新消息，可能是在我们之前的请求中已经生成成功了
+        if (detailStr.includes("No new messages") || detailStr.includes("无可用的新消息")) {
+           throw new Error("Already generated");
+        }
+        
         setErrorMsg(detailStr);
+        return;
       }
     } catch (err) {
-      setErrorMsg("生成日记请求失败，请检查网络");
+      // 核心修复与严谨性升级：处理 Vercel 10秒超时 (504) 导致 JSON 解析失败的兜底。
+      // 为了做到 100% 严谨，我们不去粗略检查时间，而是去拉取最新的消息列表，
+      // 看看我们当前聊天记录里的最后一条用户消息，是否已经被后端成功打上了 diary_id 的烙印！
+      try {
+        const checkRes = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`);
+        if (checkRes.ok) {
+          const latestMsgs = await checkRes.json();
+          const lastLocalUserMsg = [...messages].reverse().find(m => m.role === "user");
+          
+          if (lastLocalUserMsg) {
+            // 在服务器返回的最新消息中找到同一条消息
+            const updatedMsgInServer = latestMsgs.find((m: any) => m.id === lastLocalUserMsg.id);
+            
+            // 如果这条消息已经被分配了 diary_id，说明日记已经绝对生成成功了，且精准定位！
+            if (updatedMsgInServer && updatedMsgInServer.diary_id) {
+              isSuccess = true;
+              router.push(`/diary/${updatedMsgInServer.diary_id}`);
+              return;
+            }
+          }
+        }
+      } catch (checkErr) {
+        console.error("Failed to verify exact message diary status after error:", checkErr);
+      }
+      
+      setErrorMsg("日记生成耗时较长或网络不佳，请稍后刷新首页查看是否生成成功。");
     } finally {
       if (!isSuccess) {
         setIsGenerating(false);
