@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Sparkles, Loader2, ChevronLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import GlobalGeneratingIndicator from "./GlobalGeneratingIndicator";
 
 // ==========================================
 // 🕒 情绪断代时间配置（方便本地测试）
@@ -51,58 +52,30 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   const hasPrefilledRef = useRef(false);
   const isInitialScroll = useRef(true);
 
-  const { messages, setMessages, sendMessage, status } = useChat({
-    api: "/api/v1/chat",
-    fetch: async (url: string | URL | Request, options?: RequestInit) => {
-      let requestUrl = typeof url === 'string' ? url : (url as any).url || url.toString();
-      let requestOptions = options ?? {};
-
-      // 如果 url 本身是 Request 对象，将其拆解
-      if (typeof url === 'object' && 'url' in url) {
-        requestOptions = {
-          method: url.method,
-          headers: url.headers,
-          body: await url.clone().text(),
-          ...options
-        };
+  const { messages, setMessages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      body: {
+        session_id: sessionId
+      },
+      headers: {
+        "Authorization": Cookies.get("auth_token") ? `Bearer ${Cookies.get("auth_token")}` : ""
+      },
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const response = await fetch(input, init);
+        console.log("🚀 [useChat 调试] 1. 收到首个响应头，状态码:", response.status);
+        console.log("🚀 [useChat 调试] 数据流 Header (x-vercel-ai-data-stream):", response.headers.get("x-vercel-ai-data-stream"));
+        return response;
       }
-
-      if (requestOptions.body && typeof requestOptions.body === "string") {
-        try {
-          const bodyData = JSON.parse(requestOptions.body);
-          if (bodyData && Array.isArray(bodyData.messages) && bodyData.messages.length > 0) {
-            const lastMsg = bodyData.messages[bodyData.messages.length - 1];
-            let content = lastMsg.content || "";
-            if (!content && Array.isArray(lastMsg.parts)) {
-              content = lastMsg.parts
-                .filter((part: any) => part.type === "text")
-                .map((part: any) => part.text)
-                .join("");
-            }
-            const newBody = {
-              session_id: sessionId,
-              message: { role: lastMsg.role, content: content }
-            };
-            requestOptions.body = JSON.stringify(newBody);
-          }
-        } catch (e) {
-          console.error("解析请求体失败:", e);
-        }
-      }
-
-      let targetUrl = requestUrl;
-      if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-        targetUrl = `${window.location.protocol}//${window.location.hostname}:8000/api/v1/chat`;
-      }
-
-      const token = Cookies.get("auth_token");
-      if (token) {
-        const headers = new Headers(requestOptions.headers);
-        headers.set("Authorization", `Bearer ${token}`);
-        requestOptions.headers = headers;
-      }
-
-      return fetch(targetUrl, requestOptions);
+    }),
+    onFinish: ({ message }) => {
+      console.log("✅ [useChat 调试] 2. 流式接收彻底结束！");
+      console.log("✅ [useChat 调试] 最终 Vercel SDK 组装成的消息是:", message);
+      console.log("✅ [useChat 调试] 当前的完整 messages 数组:", messages);
+    },
+    onError: (err) => {
+      console.error("❌ [useChat 调试] 3. 解析过程中发生严重报错:", err);
+      setErrorMsg(`会话中断: ${err.message}`);
     },
   });
 
@@ -123,57 +96,58 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         });
         setMessageDiaryMap(map);
 
-        const hasUnprocessed = data.some((msg: any) => msg.role === "user" && !msg.diary_id);
-
-        // 移除导致本地时间偏差导致消息消失的 buggy 过滤
-        const filteredData = data;
-
+        let displayData = data;
         let willShowCurtain = false;
 
-        if (filteredData.length > 0 && filteredData[0].created_at) {
-          const firstMsg = filteredData[0];
-          const lastMsg = filteredData[filteredData.length - 1];
-          const firstTime = new Date(firstMsg.created_at.endsWith("Z") ? firstMsg.created_at : firstMsg.created_at + "Z").getTime();
-          const lastTime = new Date(lastMsg.created_at.endsWith("Z") ? lastMsg.created_at : lastMsg.created_at + "Z").getTime();
-          const now = Date.now();
-          
-          let lastActiveTime = lastTime;
-          const acknowledgedAtStr = sessionStorage.getItem(`curtain_acknowledged_${sessionId}`);
-          const acknowledgedAt = acknowledgedAtStr ? parseInt(acknowledgedAtStr, 10) : 0;
-          
-          if (acknowledgedAt > lastTime) {
-            lastActiveTime = acknowledgedAt;
-          }
-          
-          const idleTime = now - lastActiveTime;
-          const ageTime = now - firstTime;
-          
-          if (idleTime > IDLE_TIMEOUT_MS || (ageTime > AGE_TIMEOUT_MS && idleTime > SHORT_IDLE_TIMEOUT_MS)) {
-            setShowCurtain(true);
-            willShowCurtain = true;
+        if (backgroundGenerating) {
+          // 如果后台正在生成，强制隐藏幕布
+          setShowCurtain(false);
+          // 并且隐藏掉尚未封存的老消息（它们正在被打包生成日记），避免闪烁或干扰“新篇章”
+          displayData = data.filter((msg: any) => msg.diary_id);
+        } else {
+          if (data.length > 0 && data[0].created_at) {
+            const firstMsg = data[0];
+            const lastMsg = data[data.length - 1];
+            const firstTime = new Date(firstMsg.created_at.endsWith("Z") ? firstMsg.created_at : firstMsg.created_at + "Z").getTime();
+            const lastTime = new Date(lastMsg.created_at.endsWith("Z") ? lastMsg.created_at : lastMsg.created_at + "Z").getTime();
+            const now = Date.now();
+            
+            let lastActiveTime = lastTime;
+            const acknowledgedAt = parseInt(sessionStorage.getItem(`curtain_acknowledged_${sessionId}`) || "0", 10);
+            const dismissedAt = parseInt(sessionStorage.getItem(`curtain_dismissed_${sessionId}`) || "0", 10);
+            const latestAction = Math.max(acknowledgedAt, dismissedAt);
+            
+            if (latestAction > lastTime) {
+              lastActiveTime = latestAction;
+            }
+            
+            const idleTime = now - lastActiveTime;
+            const ageTime = now - firstTime;
+            
+            if (idleTime > IDLE_TIMEOUT_MS || (ageTime > AGE_TIMEOUT_MS && idleTime > SHORT_IDLE_TIMEOUT_MS)) {
+              setShowCurtain(true);
+              willShowCurtain = true;
+            }
           }
         }
 
-        const formatted = filteredData.map((msg: any) => ({
+        const formatted = displayData.map((msg: any) => ({
           id: msg.id,
           role: msg.role,
           content: msg.content,
         }));
         setMessages(formatted);
-      } else {
-        // silently fail or handle later
       }
     } catch (err) {
       console.error("Failed to load chat history", err);
     } finally {
-      // Delay slightly to ensure DOM is ready and scrolling can happen before fading in
       setTimeout(() => setIsInitializing(false), 50);
     }
   };
 
   useEffect(() => {
     loadHistory();
-  }, [sessionId, setMessages]);
+  }, [sessionId, setMessages, backgroundGenerating]);
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -444,6 +418,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         )}
 
         <div className={`py-1.5 px-3 sm:py-2.5 sm:px-4 border-b border-sage-light/40 shadow-sm flex justify-between items-center relative z-20 bg-white/80 backdrop-blur-xl transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
+          <GlobalGeneratingIndicator />
           <button 
             onClick={() => router.push('/')}
             className="p-1 -ml-1 text-sage-dark/70 hover:text-sage-dark transition-colors"
@@ -491,7 +466,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
               
               if (msg.role === "assistant" && !displayedText) {
                 // 如果后端已经停止生成（无论是报错还是断开），就不应该再显示“倾听中”
-                if (status !== "submitted" && status !== "streaming" && status !== "loading") {
+                if (status !== "submitted" && status !== "streaming") {
                   return (
                     <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
                       <div className="flex items-center gap-2 text-red-500/70 px-1 py-4 text-[13px] tracking-wide">

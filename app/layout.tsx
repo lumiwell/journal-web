@@ -29,7 +29,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="h-screen flex flex-col overflow-hidden bg-background">
+      <body className="h-[100dvh] flex flex-col overflow-hidden overscroll-none bg-background">
         <AuthProvider>
           <Header />
           {children}
