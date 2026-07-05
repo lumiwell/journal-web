@@ -26,6 +26,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   const { isExtractingDiary: backgroundGenerating, setIsExtractingDiary: setBackgroundGenerating } = useAuth();
   const [errorMsg, setErrorMsg] = useState("");
   const [showCurtain, setShowCurtain] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const router = useRouter();
 
@@ -144,6 +145,42 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
       setTimeout(() => setIsInitializing(false), 50);
     }
   };
+
+  const [isNavVisible, setIsNavVisible] = useState(true);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    let lastScrollY = container.scrollTop;
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = container.scrollTop;
+          // 当接近底部时，强制显示输入框 (距离底部 80px 以内)
+          const isAtBottom = container.clientHeight + currentScrollY >= container.scrollHeight - 80;
+          
+          if (isAtBottom) {
+            setIsNavVisible(true);
+          } else if (currentScrollY < lastScrollY - 15) {
+            // 向上滚动（看旧消息） -> 隐藏 UI，进入完全沉浸模式
+            setIsNavVisible(false);
+          } else if (currentScrollY > lastScrollY + 15) {
+            // 向下滚动（回到最新消息） -> 浮现 UI
+            setIsNavVisible(true);
+          }
+          lastScrollY = currentScrollY;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     loadHistory();
@@ -486,26 +523,25 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           </div>
         )}
 
-        <div className={`py-1.5 px-3 sm:py-2.5 sm:px-4 border-b border-sage-light/40 shadow-sm flex justify-between items-center relative z-20 bg-white/80 backdrop-blur-xl transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
+        <button 
+          onClick={() => router.push('/')}
+          className={`absolute top-4 sm:top-6 z-40 p-2.5 rounded-full transition-all duration-500 ${
+            showCurtain 
+              ? 'opacity-0 pointer-events-none translate-y-[-10px] left-4 sm:left-6 bg-white/50' 
+              : (isNavVisible 
+                  ? 'opacity-100 translate-x-0 left-4 sm:left-6 bg-white/50 backdrop-blur-md text-sage-dark/70 hover:text-sage-dark hover:bg-white/70 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] border border-white/60' 
+                  : 'opacity-80 -translate-x-[65%] left-0 bg-sage-primary/90 backdrop-blur-md text-white border border-sage-primary/50 hover:-translate-x-1/4 hover:opacity-100 shadow-[2px_0_10px_rgba(163,177,138,0.4)]')
+          }`}
+        >
+          <ChevronLeft size={24} strokeWidth={2.5} />
+        </button>
+
+        {/* Global Indicator wrapper needs to be full width and same height as the back button (44px) to perfectly align horizontally */}
+        <div className={`absolute top-4 sm:top-6 left-0 w-full h-[44px] z-50 transition-all duration-500 pointer-events-none ${showCurtain ? 'opacity-0 translate-y-[-10px]' : 'opacity-100 translate-y-0'}`}>
           <GlobalGeneratingIndicator />
-          <button 
-            onClick={() => router.push('/')}
-            className="p-1 -ml-1 text-sage-dark/70 hover:text-sage-dark transition-colors"
-          >
-            <ChevronLeft size={26} />
-          </button>
-          <button 
-            onClick={() => handleGenerateDiary(false)}
-            disabled={isGenerating || isLoading || !canGenerate}
-            className={`flex items-center gap-1.5 text-[14px] sm:text-[15px] text-sage-dark font-medium transition-all duration-300 ${
-              (canGenerate && !isGenerating && !isLoading) 
-                ? "hover:text-sage-primary cursor-pointer hover:scale-105" 
-                : "opacity-40 cursor-not-allowed"
-            }`}
-          >
-            {isGenerating ? "正在生成..." : <><Sparkles size={16} /> 生成日记</>}
-          </button>
         </div>
+
+
 
         {errorMsg && (
           <motion.div 
@@ -606,13 +642,28 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         </div>
 
         <div className={`px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/70 sm:bg-white/50 backdrop-blur-md transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
-          <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+          <form onSubmit={handleSubmit} className="flex gap-2 items-end max-w-3xl mx-auto w-full">
+            {/* The Magic Sparkles button (Action Sheet Trigger) */}
+            <button
+              type="button"
+              onClick={() => setShowActionSheet(true)}
+              disabled={isGenerating || isLoading}
+              title="打开操作菜单"
+              className={`w-[38px] h-[38px] rounded-full flex items-center justify-center shrink-0 shadow-sm mb-0.5 border transition-all duration-300 ${
+                (!isGenerating && !isLoading)
+                  ? "bg-sage-light/40 text-sage-primary hover:bg-sage-primary hover:text-white border-sage-light/60 hover:border-transparent cursor-pointer hover:scale-105"
+                  : "bg-gray-50 text-sage-muted border-gray-100 opacity-50 cursor-not-allowed"
+              }`}
+            >
+              <Sparkles size={18} className={isGenerating ? "animate-pulse" : ""} />
+            </button>
+
             <div className="flex-1 bg-white rounded-[20px] shadow-sm border border-sage-light/50 py-1 px-2">
               <textarea
                 ref={textareaRef}
                 className="w-full bg-transparent px-2 py-1.5 text-[15px] focus:outline-none placeholder-sage-muted text-sage-dark resize-none slim-scrollbar block leading-relaxed max-h-[120px]"
                 style={{ overflowY: 'auto' }}
-                placeholder="此刻的你在想些什么？"
+                placeholder="此刻你在想些什么？"
                 value={input}
                 rows={1}
                 onChange={(e) => {
@@ -674,6 +725,57 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
               </AnimatePresence>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 底部操作半屏幕布 (Bottom Action Sheet) */}
+      <AnimatePresence>
+        {showActionSheet && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowActionSheet(false)}
+              className="absolute inset-0 z-[60] bg-sage-dark/20 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="absolute bottom-0 left-0 right-0 z-[70] bg-white/95 backdrop-blur-xl rounded-t-[32px] shadow-[0_-10px_40px_rgba(0,0,0,0.08)] border-t border-sage-light/30 p-6 pb-[max(2rem,env(safe-area-inset-bottom))]"
+            >
+              <div className="w-12 h-1.5 bg-sage-light/80 rounded-full mx-auto mb-8" />
+              
+              <div className="max-w-md mx-auto space-y-4">
+                <button
+                  onClick={() => {
+                    setShowActionSheet(false);
+                    handleGenerateDiary(false);
+                  }}
+                  disabled={!canGenerate}
+                  className="w-full flex items-center justify-center gap-2 bg-sage-primary text-white py-4 rounded-2xl text-[16px] font-medium hover:bg-sage-dark transition-all duration-300 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles size={18} />
+                  封存当前思绪，生成日记
+                </button>
+                
+                {/* 预留未来扩展功能的空间，例如：
+                <button className="...">
+                   重写语气 / 提取灵感 ...
+                </button>
+                */}
+
+                <button
+                  onClick={() => setShowActionSheet(false)}
+                  className="w-full py-4 text-[15px] font-medium text-sage-muted hover:text-sage-dark transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </main>
