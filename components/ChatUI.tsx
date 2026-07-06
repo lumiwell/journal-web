@@ -761,11 +761,44 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
                   封存当前思绪，生成日记
                 </button>
                 
-                {/* 预留未来扩展功能的空间，例如：
-                <button className="...">
-                   重写语气 / 提取灵感 ...
-                </button>
-                */}
+                {process.env.NODE_ENV === 'development' && (
+                  <button
+                    onClick={() => {
+                      setShowActionSheet(false);
+                      
+                      // 导出对话逻辑
+                      let exportText = "";
+                      let roundCount = 0;
+
+                      messages.forEach((msg) => {
+                        const partsText = msg.parts && msg.parts.length > 0
+                          ? msg.parts.filter((p: any) => p.type === "text").map((p: any) => p.text).join("")
+                          : ((msg as any).content || "");
+                          
+                        if (!partsText.trim()) return;
+                          
+                        if (msg.role === "user") {
+                          roundCount++;
+                          if (roundCount > 1) exportText += "\n";
+                          exportText += `## 第${roundCount}轮\n用户：${partsText}\n`;
+                        } else if (msg.role === "assistant") {
+                          if (roundCount === 0) {
+                            roundCount++;
+                            exportText += `## 第${roundCount}轮\n`;
+                          }
+                          exportText += `\n回复：\n${partsText}\n\n`;
+                        }
+                      });
+
+                      navigator.clipboard.writeText(exportText.trim())
+                        .then(() => alert("【开发者工具】对话记录复制成功！"))
+                        .catch(() => alert("复制失败"));
+                    }}
+                    className="w-full py-4 text-[14px] font-medium text-sage-primary/80 bg-sage-50/50 rounded-2xl hover:bg-sage-100/50 transition-colors border border-sage-200/50"
+                  >
+                    👨‍💻 [内部] 导出本局对话供调优
+                  </button>
+                )}
 
                 <button
                   onClick={() => setShowActionSheet(false)}
