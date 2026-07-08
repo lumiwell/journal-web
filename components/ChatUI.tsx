@@ -428,7 +428,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   }, [messages, isInitializing]);
 
   return (
-    <main className="flex-1 min-h-0 flex flex-col items-center bg-background sm:p-4 font-sans relative w-full overflow-hidden">
+    <main className="h-[100dvh] flex flex-col items-center bg-background sm:p-4 font-sans relative w-full overflow-hidden">
       {/* 极微弱的背景呼吸光晕 */}
       <motion.div 
         animate={{ opacity: [0.3, 0.5, 0.3], scale: [1, 1.05, 1] }}

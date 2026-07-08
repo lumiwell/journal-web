@@ -118,7 +118,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <main id="home-scroll-container" className="flex-1 w-full flex flex-col items-center bg-background p-4 pt-[80px] font-sans relative overflow-x-hidden overflow-y-auto overscroll-none">
+    <main id="home-scroll-container" className="flex-1 w-full flex flex-col items-center bg-background p-4 pt-[80px] font-sans relative overflow-x-hidden">
       {/* 极微弱的背景光晕 */}
       <div className="absolute top-0 left-0 w-full h-[30vh] bg-gradient-to-b from-sage-light/40 to-transparent -z-10" />
 

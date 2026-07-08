@@ -1,11 +1,82 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useLayoutEffect, useState, useRef } from "react";
 import { fetchWithAuth } from "@/lib/api";
 import Cookies from "js-cookie";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+
+function EditableBlock({ 
+  content, 
+  onSave, 
+  label,
+  multiline = true,
+  textClassName = "text-base sm:text-lg",
+  placeholder = "点击添加..."
+}: { 
+  content: string; 
+  onSave: (val: string) => void;
+  label?: string;
+  multiline?: boolean;
+  textClassName?: string;
+  placeholder?: string;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [val, setVal] = useState(content);
+
+  const handleSave = () => {
+    setIsEditing(false);
+    if (val !== content) {
+      onSave(val);
+    }
+  };
+
+  const containerClasses = `relative group w-full transition-colors duration-300 ${!isEditing ? "cursor-text" : ""}`;
+
+  return (
+    <div className={containerClasses} onClick={() => { if (!isEditing) setIsEditing(true); }}>
+      {label && (
+        <div className="text-[11px] font-bold tracking-widest text-sage-muted/60 uppercase mb-1.5">
+          {label}
+        </div>
+      )}
+      
+      <div className="relative w-full">
+        {isEditing ? (
+          <>
+            {/* Hidden div to drive native height matching exactly */}
+            <div className={`invisible whitespace-pre-wrap leading-relaxed ${textClassName} break-words`} aria-hidden="true">
+              {val + ' '}
+            </div>
+            {/* Absolute textarea overlay */}
+            <textarea
+              className={`absolute top-0 left-0 w-full h-full bg-transparent border-none outline-none ring-0 p-0 m-0 resize-none overflow-hidden text-sage-dark leading-relaxed whitespace-pre-wrap break-words ${textClassName}`}
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setVal(content);
+                  setIsEditing(false);
+                }
+                if (!multiline && e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSave();
+                }
+              }}
+              autoFocus
+            />
+          </>
+        ) : (
+          <div className={`text-sage-dark leading-relaxed whitespace-pre-wrap ${textClassName} break-words`}>
+            {content || <span className="text-sage-muted/40 italic">{placeholder}</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_id: string }> }) {
   const unwrappedParams = use(params);
@@ -15,6 +86,16 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [showRawChat, setShowRawChat] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 60);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const fetchDiaryAndMessages = async () => {
@@ -22,28 +103,85 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
         const sessionId = Cookies.get("guest_session_id");
         if (!sessionId) throw new Error("No session ID");
 
-        // 1. Fetch Diary Metadata
         const diaryRes = await fetchWithAuth(`/api/v1/diaries/${unwrappedParams.diary_id}?session_id=${sessionId}`);
         if (!diaryRes.ok) throw new Error("Diary not found");
         const diaryData = await diaryRes.json();
+        
+        // Handle old schema gracefully if content is a string
+        if (typeof diaryData.content === 'string') {
+           diaryData.content = { fact: diaryData.content };
+        }
+
         setDiary(diaryData);
 
-        // 2. Fetch Diary Messages
         const msgRes = await fetchWithAuth(`/api/v1/diaries/${unwrappedParams.diary_id}/messages?session_id=${sessionId}`);
         if (msgRes.ok) {
-          const msgData = await msgRes.json();
-          setMessages(msgData);
+           setMessages(await msgRes.json());
         }
       } catch (err) {
-        console.error("Failed to load diary details", err);
+        console.error("Failed to load diary", err);
         setLoadError(true);
       } finally {
         setLoading(false);
       }
     };
-
     fetchDiaryAndMessages();
   }, [unwrappedParams.diary_id]);
+
+  const updateDiaryField = async (fieldPath: string, newValue: string) => {
+    if (!diary) return;
+    
+    // Deep copy
+    const updated = { ...diary, content: { ...diary.content } };
+    
+    if (fieldPath === 'title') {
+      updated.title = newValue;
+    } else if (fieldPath === 'core_emotion') {
+      updated.core_emotion = newValue;
+    } else if (fieldPath === 'action_plan.task') {
+      if (!updated.content.action_plan) updated.content.action_plan = { status: 'pending' };
+      updated.content.action_plan.task = newValue;
+    } else {
+      updated.content[fieldPath] = newValue;
+    }
+
+    setDiary(updated); // Optimistic update
+
+    try {
+      const sessionId = Cookies.get("guest_session_id");
+      await fetchWithAuth(`/api/v1/diaries/${diary.id}?session_id=${sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: updated.title,
+          core_emotion: updated.core_emotion,
+          content: updated.content
+        })
+      });
+    } catch (e) {
+      console.error("Failed to update", e);
+    }
+  };
+
+  const toggleActionStatus = async () => {
+    if (!diary || !diary.content?.action_plan) return;
+    const currentStatus = diary.content.action_plan.status;
+    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+    
+    const updated = { ...diary, content: { ...diary.content, action_plan: { ...diary.content.action_plan, status: newStatus } } };
+    setDiary(updated);
+
+    try {
+      const sessionId = Cookies.get("guest_session_id");
+      await fetchWithAuth(`/api/v1/diaries/${diary.id}/action_status?session_id=${sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus })
+      });
+    } catch (e) {
+      console.error("Failed to update status", e);
+    }
+  };
 
   if (loading) {
     return (
@@ -70,92 +208,237 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
     );
   }
 
-  // Format Date
-  const dateObj = new Date(diary.created_at + 'Z');
-  const dateStr = dateObj.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+  const dateStr = new Date(diary.created_at + 'Z').toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+  const content = diary.content || {};
 
   return (
-    <main className="flex-1 w-full flex flex-col items-center bg-background p-4 pt-[90px] font-sans relative overflow-x-hidden overflow-y-auto">
-      {/* 极微弱的背景光晕 */}
-      <div className="absolute top-0 left-0 w-full h-[40vh] bg-gradient-to-b from-sage-light/40 to-transparent -z-10" />
+    <main className="flex-1 w-full flex flex-col items-center pt-0 font-sans relative overflow-x-hidden min-h-screen" style={{ backgroundColor: '#FAF9F6' }}>
+      
+      {/* 情绪治愈系背景光晕 (Ambient Background) - 静态以支持长截屏 */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#E8EFE9]/60 blur-[100px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-[#FCEBE7]/50 blur-[120px]" />
+        <div className="absolute top-[30%] right-[5%] w-[40vw] h-[40vw] rounded-full bg-[#FFF4E0]/40 blur-[100px]" />
+      </div>
 
-      <div className="w-full max-w-2xl flex flex-col mb-12">
-        <Link href="/" className="self-start mb-6 text-sage-muted hover:text-sage-primary transition-colors text-sm flex items-center gap-2 group">
-          <span className="group-hover:-translate-x-1 transition-transform">←</span> 返回时光
-        </Link>
+      {/* Back Button (Fixed Float) */}
+      <Link 
+        href="/" 
+        className={`fixed z-[100] w-11 h-11 flex items-center justify-center rounded-full transition-all duration-500 shadow-sm border ${
+          isScrolled 
+            ? 'top-6 -translate-x-[65%] left-0 bg-sage-primary/90 backdrop-blur-md text-white border-sage-primary/50 hover:-translate-x-1/4 opacity-80 hover:opacity-100 shadow-[2px_0_10px_rgba(163,177,138,0.4)]'
+            : 'top-6 sm:top-8 left-6 sm:left-8 bg-white/30 hover:bg-white/60 backdrop-blur-md text-sage-dark/80 hover:text-sage-dark border-white/50 hover:scale-105'
+        }`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </Link>
 
-        {/* ========================================= */}
-        {/* Top Section: The Crystal (日记结晶) */}
-        {/* ========================================= */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-sm border border-sage-light/50 p-8 sm:p-12 relative overflow-hidden"
-        >
-          {/* 装饰性引言角标 */}
-          <div className="absolute top-0 left-0 w-2 h-full bg-sage-primary/40 rounded-l-3xl"></div>
-          
-          <div className="flex justify-between items-start mb-8">
-            <span className="text-xs font-medium tracking-widest text-sage-muted uppercase">
-              {dateStr}
-            </span>
-            <span className="px-3 py-1 bg-sage-light/50 text-sage-dark text-xs rounded-full font-medium border border-sage-light">
-              情绪状态：{diary.core_emotion}
-            </span>
-          </div>
-
-          <h1 className="text-2xl sm:text-3xl font-medium text-sage-dark leading-snug mb-8 tracking-wide">
-            “{diary.insight}”
-          </h1>
-
-          <div className="text-base sm:text-lg text-sage-dark/80 leading-loose tracking-wide whitespace-pre-wrap">
-            {diary.content || "一段关于觉察的旅程..."}
-          </div>
-        </motion.div>
-
-        {/* ========================================= */}
-        {/* Divider: The Journey (觉察足迹) */}
-        {/* ========================================= */}
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          transition={{ delay: 0.5, duration: 0.8 }} 
-          className="flex items-center justify-center my-12"
-        >
-          <div className="border-t border-sage-light/80 flex-grow max-w-[100px]"></div>
-          <span className="mx-6 text-xs text-sage-muted tracking-[0.2em]">对话回溯</span>
-          <div className="border-t border-sage-light/80 flex-grow max-w-[100px]"></div>
-        </motion.div>
-
-        {/* ========================================= */}
-        {/* Bottom Section: The Journey Chat Log */}
-        {/* ========================================= */}
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          transition={{ delay: 0.7, duration: 0.8 }} 
-          className="space-y-6"
-        >
-          {messages.map((msg, index) => {
-            const isUser = msg.role === "user";
-            
-            return (
-              <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                <div 
-                  className={`max-w-[85%] p-4 text-[14px] leading-relaxed whitespace-pre-wrap ${
-                    isUser 
-                      ? "bg-sage-light/40 text-sage-dark rounded-3xl rounded-br-md border border-sage-light/20" 
-                      : "bg-transparent text-sage-dark/80 rounded-3xl px-2"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              </div>
-            );
-          })}
-        </motion.div>
+      {/* --- Coping Mantra Banner (Edge-to-Edge) --- */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className="w-full relative overflow-hidden z-10 flex flex-col justify-start min-h-[220px] sm:min-h-[260px] pt-14 sm:pt-16 pb-20 shrink-0">
+        {/* Distinct Banner Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#d2e0d7] via-[#f0d8d1] to-[#f4e8d3]" />
         
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/50 rounded-full blur-[80px] -translate-y-1/3 translate-x-1/3 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-white/40 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/4 pointer-events-none" />
+        
+        {/* Gradient fade to match page background at the bottom edge */}
+        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#FAF9F6] to-transparent pointer-events-none" />
+
+
+        
+        <div className="relative w-full max-w-2xl mx-auto px-6 sm:px-12 flex flex-col items-center text-center z-20">
+          <div className="flex flex-col items-center mb-6 sm:mb-8">
+            <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.8 }} className="text-xs tracking-[0.4em] text-sage-dark/50 uppercase mb-2 font-bold flex items-center gap-3">
+              <span className="w-8 h-[1px] bg-sage-dark/15"></span>
+              今日防身咒语
+              <span className="w-8 h-[1px] bg-sage-dark/15"></span>
+            </motion.span>
+            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8, duration: 1 }} className="text-[10px] text-sage-dark/40 tracking-widest opacity-80">
+              下次emo了，回来看看这句话
+            </motion.span>
+          </div>
+          <div className="w-full max-w-lg">
+            <EditableBlock 
+              multiline={true}
+              content={content.coping_mantra} 
+              onSave={(val) => updateDiaryField('coping_mantra', val)} 
+              textClassName="text-sage-dark font-medium italic text-xl sm:text-2xl tracking-widest text-center leading-relaxed drop-shadow-sm"
+              placeholder="写下一句保护自己的力量咒语..."
+            />
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="w-full max-w-2xl flex flex-col px-6 sm:px-12 py-10 mb-8 gap-8 z-10 shrink-0">
+
+        {/* --- Header Block --- */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full flex flex-col gap-3">
+          <EditableBlock 
+            multiline={false} 
+            content={diary.title} 
+            onSave={(val) => updateDiaryField('title', val)} 
+            textClassName="text-3xl sm:text-4xl font-bold tracking-tight text-sage-dark"
+            placeholder="写下今天的标题..."
+          />
+          
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium tracking-widest text-sage-muted uppercase">{dateStr}</span>
+            <span className="px-3 py-1 bg-sage-light/50 text-sage-dark text-xs rounded-full font-medium border border-sage-light">
+              {diary.core_emotion}
+            </span>
+          </div>
+        </motion.div>
+
+        {/* --- SomaTags Block --- */}
+        {content.body_sensation && content.body_sensation.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="flex flex-wrap gap-2">
+            {content.body_sensation.map((tag: string, i: number) => (
+              <span 
+                key={tag + i} 
+                className="px-4 py-2 bg-white/60 backdrop-blur text-sage-dark text-sm rounded-full border border-sage-light/60 shadow-sm"
+              >
+                #{tag}
+              </span>
+            ))}
+          </motion.div>
+        )}
+
+        {/* --- Fact Block --- */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="bg-sage-dark/[0.02] rounded-xl p-4 border border-sage-dark/5">
+          <EditableBlock 
+            label="发生了什么" 
+            content={content.fact} 
+            onSave={(val) => updateDiaryField('fact', val)} 
+            placeholder="我正在为什么事情焦虑？我害怕什么？"
+          />
+        </motion.div>
+
+        {/* --- Insight Block --- */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }} className="bg-sage-dark/[0.02] rounded-xl p-4 border border-sage-dark/5">
+           <EditableBlock 
+             label="觉察了什么" 
+             content={content.insight} 
+             onSave={(val) => updateDiaryField('insight', val)} 
+             placeholder="我当下的情绪和身体反应是什么？"
+           />
+           {content.cognitive_distortion && content.cognitive_distortion.length > 0 && (
+             <div className="mt-3 flex gap-2 items-center flex-wrap px-3">
+               <span className="text-[11px] font-bold text-sage-muted/60 tracking-widest uppercase">认知偏差识别：</span>
+               {content.cognitive_distortion.map((cd: string, i: number) => (
+                 <span key={i} className="text-xs text-rose-500/80 bg-rose-50/50 px-2 py-1 rounded-md">{cd}</span>
+               ))}
+             </div>
+           )}
+        </motion.div>
+
+        {/* --- Reframing Block --- */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4 }} className="bg-sage-dark/[0.02] rounded-xl p-4 border border-sage-dark/5">
+           <EditableBlock 
+             label="换个视角看看呗" 
+             content={content.reframing} 
+             onSave={(val) => updateDiaryField('reframing', val)} 
+             placeholder="试着像朋友一样，安慰现在的自己"
+           />
+        </motion.div>
+
+        {/* --- Action Block (微行动) --- */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.6 }} className="w-full">
+          <div className={`relative overflow-hidden rounded-3xl p-8 sm:p-10 transition-all duration-700 ${
+            content.action_plan?.status === 'completed' 
+              ? 'bg-gradient-to-br from-sage-light/40 to-[#FCEBE7]/50 shadow-sm border border-white/60' 
+              : 'bg-sage-dark/[0.02] border border-sage-dark/5 backdrop-blur-md'
+          }`}>
+            
+            <AnimatePresence>
+              {content.action_plan?.status === 'completed' && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="absolute -top-10 -right-10 w-48 h-48 bg-white/60 rounded-full blur-2xl pointer-events-none"
+                />
+              )}
+            </AnimatePresence>
+
+            <div className="relative z-10 flex flex-col items-center text-center">
+              <span className="text-[11px] font-bold tracking-widest text-sage-muted/70 uppercase mb-5">
+                {content.action_plan?.status === 'completed' ? '🌸 勇气已封存' : '✦ 尝试给自己一份礼物 ✦'}
+              </span>
+              
+              <div className="w-full max-w-md mb-8">
+                {content.action_plan?.status === 'completed' ? (
+                  <div className="text-center font-medium text-sage-primary text-lg sm:text-xl leading-loose whitespace-pre-wrap break-words px-3 py-2">
+                    {content.action_plan?.task}
+                  </div>
+                ) : (
+                  <EditableBlock 
+                    multiline={true}
+                    content={content.action_plan?.task} 
+                    onSave={(val) => updateDiaryField('action_plan.task', val)} 
+                    textClassName="text-center font-medium text-sage-dark text-base sm:text-lg"
+                    placeholder="今天还可以为自己做些什么微小的事呢？"
+                  />
+                )}
+              </div>
+
+              <button 
+                onClick={toggleActionStatus}
+                className={`group relative overflow-hidden rounded-full px-8 py-3.5 transition-all duration-500 font-medium tracking-wide text-sm ${
+                  content.action_plan?.status === 'completed'
+                    ? 'bg-white/90 text-sage-primary shadow-sm hover:shadow hover:scale-105'
+                    : 'bg-sage-dark/5 text-sage-dark hover:bg-sage-dark/10 hover:scale-105'
+                }`}
+              >
+                {content.action_plan?.status === 'completed' ? (
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg">✨</span> 已接纳这份勇敢
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <span className="opacity-70 group-hover:opacity-100 transition-opacity">🌸</span> 我愿意为自己勇敢一次
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* --- Chat Log Reveal Button --- */}
+        <div className="flex justify-center mt-8 mb-4">
+          <button 
+            onClick={() => setShowRawChat(!showRawChat)}
+            className="text-[11px] text-sage-muted/40 hover:text-sage-primary/80 transition-colors tracking-widest flex items-center gap-2 px-6 py-3"
+          >
+            {showRawChat ? '收起对话' : '翻阅原始对话'}
+          </button>
+        </div>
+
+        {/* --- Chat Log --- */}
+        <AnimatePresence>
+          {showRawChat && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+              className="space-y-6 opacity-70 hover:opacity-100 transition-opacity duration-500 overflow-hidden"
+            >
+              {messages.map((msg) => {
+                const isUser = msg.role === "user";
+                return (
+                  <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[85%] p-4 text-[14px] leading-relaxed whitespace-pre-wrap ${
+                        isUser ? "bg-sage-light/40 text-sage-dark rounded-3xl rounded-br-md border border-sage-light/20" 
+                               : "bg-transparent text-sage-dark/80 rounded-3xl px-2"
+                      }`}>
+                  {msg.content}
+                    </div>
+                  </div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </main>
   );
