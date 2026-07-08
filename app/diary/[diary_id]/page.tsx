@@ -6,6 +6,8 @@ import Cookies from "js-cookie";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { MoreHorizontal, Trash2 } from "lucide-react";
+import ConfirmModal from "@/components/ConfirmModal";
 
 function EditableBlock({ 
   content, 
@@ -88,6 +90,27 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
   const [loadError, setLoadError] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showRawChat, setShowRawChat] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleDeleteDiary = () => {
+    setShowActionSheet(false);
+    setShowConfirm(true);
+  };
+
+  const executeDelete = async () => {
+    try {
+      const sessionId = Cookies.get("guest_session_id");
+      const res = await fetchWithAuth(`/api/v1/diaries/${diary.id}?session_id=${sessionId}`, { method: "DELETE" });
+      if (res.ok) {
+        router.replace("/");
+      } else {
+        console.error("Delete failed", await res.text());
+      }
+    } catch (e) {
+      console.error("Failed to delete diary", e);
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -221,17 +244,26 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
         <div className="absolute top-[30%] right-[5%] w-[40vw] h-[40vw] rounded-full bg-[#FFF4E0]/40 blur-[100px]" />
       </div>
 
-      {/* Back Button (Fixed Float) */}
-      <Link 
-        href="/" 
-        className={`fixed z-[100] w-11 h-11 flex items-center justify-center rounded-full transition-all duration-500 shadow-sm border ${
-          isScrolled 
-            ? 'top-6 -translate-x-[65%] left-0 bg-sage-primary/90 backdrop-blur-md text-white border-sage-primary/50 hover:-translate-x-1/4 opacity-80 hover:opacity-100 shadow-[2px_0_10px_rgba(163,177,138,0.4)]'
-            : 'top-6 sm:top-8 left-6 sm:left-8 bg-white/30 hover:bg-white/60 backdrop-blur-md text-sage-dark/80 hover:text-sage-dark border-white/50 hover:scale-105'
-        }`}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-      </Link>
+      {/* Navigation Bar (Absolute Top, scrolls with page) */}
+      <div className="absolute top-0 left-0 right-0 pt-6 sm:pt-8 z-[100] pointer-events-none flex items-start justify-between px-6 sm:px-8">
+        
+        {/* Back Button (Subtle & Borderless) */}
+        <Link 
+          href="/" 
+          className="w-11 h-11 flex items-center justify-center rounded-full text-sage-dark/50 hover:text-sage-dark transition-all duration-300 pointer-events-auto hover:bg-white/30 hover:scale-105"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </Link>
+
+        {/* More Options Button (Subtle & Borderless) */}
+        <button 
+          onClick={() => setShowActionSheet(true)}
+          className="w-11 h-11 flex items-center justify-center rounded-full text-sage-dark/50 hover:text-sage-dark transition-all duration-300 pointer-events-auto hover:bg-white/30"
+        >
+          <MoreHorizontal size={24} strokeWidth={2.5} />
+        </button>
+
+      </div>
 
       {/* --- Coping Mantra Banner (Edge-to-Edge) --- */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className="w-full relative overflow-hidden z-10 flex flex-col justify-start min-h-[220px] sm:min-h-[260px] pt-14 sm:pt-16 pb-20 shrink-0">
@@ -440,6 +472,59 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
           )}
         </AnimatePresence>
       </div>
+
+      {/* 底部操作半屏幕布 (Bottom Action Sheet) */}
+      <AnimatePresence>
+        {showActionSheet && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowActionSheet(false)}
+              className="fixed inset-0 z-[110] bg-sage-dark/20 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 z-[120] bg-white/95 backdrop-blur-xl rounded-t-[32px] shadow-[0_-10px_40px_rgba(0,0,0,0.08)] border-t border-sage-light/30 p-6 pb-[max(2rem,env(safe-area-inset-bottom))]"
+            >
+              <div className="w-12 h-1.5 bg-sage-light/80 rounded-full mx-auto mb-8" />
+              
+              <div className="max-w-md mx-auto space-y-4">
+                <button
+                  onClick={() => {
+                    setShowActionSheet(false);
+                    handleDeleteDiary();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-500 py-4 rounded-2xl text-[15px] font-medium hover:bg-red-100 transition-all duration-300 shadow-sm border border-red-100"
+                >
+                  <Trash2 size={18} />
+                  删除这篇日记
+                </button>
+
+                <button
+                  onClick={() => setShowActionSheet(false)}
+                  className="w-full py-4 text-[15px] font-medium text-sage-muted hover:text-sage-dark transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={showConfirm}
+        title="告别这篇日记？"
+        description="这将会彻底销毁这篇日记及其背后的所有原始对话记录，该操作不可恢复。"
+        confirmText="彻底删除"
+        onConfirm={executeDelete}
+        onCancel={() => setShowConfirm(false)}
+      />
     </main>
   );
 }

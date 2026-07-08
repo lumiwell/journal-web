@@ -36,10 +36,7 @@ export default function Header() {
   const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (pathname === "/") {
       e.preventDefault();
-      const container = document.getElementById("home-scroll-container");
-      if (container) {
-        container.scrollTo({ top: 0, behavior: "smooth" });
-      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 

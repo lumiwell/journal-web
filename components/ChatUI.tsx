@@ -7,9 +7,10 @@ import Cookies from "js-cookie";
 import { fetchWithAuth } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Loader2, ChevronLeft } from "lucide-react";
+import { Send, Sparkles, Loader2, ChevronLeft, Trash2, Plus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import GlobalGeneratingIndicator from "./GlobalGeneratingIndicator";
+import ConfirmModal from "./ConfirmModal";
 
 // ==========================================
 // 🕒 情绪断代时间配置（方便本地测试）
@@ -27,8 +28,42 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   const [errorMsg, setErrorMsg] = useState("");
   const [showCurtain, setShowCurtain] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [viewportHeight, setViewportHeight] = useState('100dvh');
   const router = useRouter();
+
+  useEffect(() => {
+    const updateHeight = () => {
+      setViewportHeight(`${window.visualViewport ? window.visualViewport.height : window.innerHeight}px`);
+    };
+    
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateHeight);
+    }
+    
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateHeight);
+      }
+    };
+  }, []);
+
+  const executeClearChat = async () => {
+    try {
+      await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { method: "DELETE" });
+      setMessages([]);
+      setMessageDiaryMap({});
+      setShowActionSheet(false);
+      window.location.reload();
+    } catch (err) {
+      console.error("Failed to clear chat", err);
+      setErrorMsg("清空对话失败，请重试");
+    }
+  };
 
   const generationSteps = [
     { title: "正在倾听内心的回音...", subtitle: "安静地深呼吸，那些未言明的思绪，我都懂" },
@@ -425,11 +460,15 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         }, 100);
       }
     }
-  }, [messages, isInitializing]);
+  }, [messages, isInitializing, viewportHeight]);
 
   return (
-    <main className="h-[100dvh] flex flex-col items-center bg-background sm:p-4 font-sans relative w-full overflow-hidden">
-      {/* 极微弱的背景呼吸光晕 */}
+    <main 
+      style={{ height: viewportHeight }}
+      className="fixed top-0 left-0 w-full flex flex-col bg-background font-sans z-40 overflow-hidden"
+    >
+      <div className="flex-1 w-full max-w-3xl mx-auto flex flex-col min-h-0 relative">
+        {/* 极微弱的背景呼吸光晕 */}
       <motion.div 
         animate={{ opacity: [0.3, 0.5, 0.3], scale: [1, 1.05, 1] }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
@@ -536,12 +575,9 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           <ChevronLeft size={24} strokeWidth={2.5} />
         </button>
 
-        {/* Global Indicator wrapper needs to be full width and same height as the back button (44px) to perfectly align horizontally */}
         <div className={`absolute top-4 sm:top-6 left-0 w-full h-[44px] z-50 transition-all duration-500 pointer-events-none ${showCurtain ? 'opacity-0 translate-y-[-10px]' : 'opacity-100 translate-y-0'}`}>
           <GlobalGeneratingIndicator />
         </div>
-
-
 
         {errorMsg && (
           <motion.div 
@@ -553,7 +589,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           </motion.div>
         )}
 
-        <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto p-6 space-y-6 transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none overflow-hidden' : ''}`}>
+        <div ref={scrollContainerRef} className={`flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pt-6 pb-6 space-y-6 transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none overflow-hidden' : ''}`}>
           {messages.length === 0 ? (
             <div className="text-center text-sage-muted h-full flex flex-col items-center justify-center">
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center">
@@ -570,7 +606,6 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
               const displayedText = partsText.replace(/[\s\u200B-\u200D\uFEFF]/g, "");
               
               if (msg.role === "assistant" && !displayedText) {
-                // 如果后端已经停止生成（无论是报错还是断开），就不应该再显示“倾听中”
                 if (status !== "submitted" && status !== "streaming") {
                   return (
                     <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
@@ -638,26 +673,10 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
               </div>
             </motion.div>
           )}
-
         </div>
 
-        <div className={`px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/70 sm:bg-white/50 backdrop-blur-md transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
+        <div className={`w-full px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/70 sm:bg-white/50 backdrop-blur-md transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
           <form onSubmit={handleSubmit} className="flex gap-2 items-end max-w-3xl mx-auto w-full">
-            {/* The Magic Sparkles button (Action Sheet Trigger) */}
-            <button
-              type="button"
-              onClick={() => setShowActionSheet(true)}
-              disabled={isGenerating || isLoading}
-              title="打开操作菜单"
-              className={`w-[38px] h-[38px] rounded-full flex items-center justify-center shrink-0 shadow-sm mb-0.5 border transition-all duration-300 ${
-                (!isGenerating && !isLoading)
-                  ? "bg-sage-light/40 text-sage-primary hover:bg-sage-primary hover:text-white border-sage-light/60 hover:border-transparent cursor-pointer hover:scale-105"
-                  : "bg-gray-50 text-sage-muted border-gray-100 opacity-50 cursor-not-allowed"
-              }`}
-            >
-              <Sparkles size={18} className={isGenerating ? "animate-pulse" : ""} />
-            </button>
-
             <div className="flex-1 bg-white rounded-[20px] shadow-sm border border-sage-light/50 py-1 px-2">
               <textarea
                 ref={textareaRef}
@@ -675,19 +694,29 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
                 disabled={isGenerating}
               />
             </div>
-            <button
-              type="submit"
-              disabled={isLoading || isGenerating || !input.trim()}
-              className="bg-sage-primary text-white w-[38px] h-[38px] rounded-full hover:bg-sage-dark disabled:opacity-40 transition-colors flex items-center justify-center shrink-0 shadow-sm mb-0.5"
-            >
-              <Send size={16} className="-ml-0.5" />
-            </button>
+            
+            {input.trim() ? (
+              <button
+                type="submit"
+                disabled={isLoading || isGenerating}
+                className="bg-sage-primary text-white w-[38px] h-[38px] rounded-full hover:bg-sage-dark disabled:opacity-40 transition-colors flex items-center justify-center shrink-0 shadow-sm mb-0.5"
+              >
+                <Send size={16} className="-ml-0.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowActionSheet(true)}
+                disabled={isGenerating || isLoading}
+                className="bg-sage-light/40 text-sage-primary w-[38px] h-[38px] rounded-full hover:bg-sage-primary hover:text-white transition-all flex items-center justify-center shrink-0 shadow-sm mb-0.5"
+              >
+                <Plus size={20} />
+              </button>
+            )}
           </form>
         </div>
-
       </motion.div>
       
-      {/* 沉浸式生成遮罩 (Immersive Ritual Overlay) */}
       <AnimatePresence>
         {isGenerating && (
           <motion.div
@@ -728,7 +757,6 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         )}
       </AnimatePresence>
 
-      {/* 底部操作半屏幕布 (Bottom Action Sheet) */}
       <AnimatePresence>
         {showActionSheet && (
           <>
@@ -748,25 +776,41 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
             >
               <div className="w-12 h-1.5 bg-sage-light/80 rounded-full mx-auto mb-8" />
               
-              <div className="max-w-md mx-auto space-y-4">
+              <div className="max-w-md mx-auto flex gap-6 px-2">
                 <button
                   onClick={() => {
                     setShowActionSheet(false);
                     handleGenerateDiary(false);
                   }}
                   disabled={!canGenerate}
-                  className="w-full flex items-center justify-center gap-2 bg-sage-primary text-white py-4 rounded-2xl text-[16px] font-medium hover:bg-sage-dark transition-all duration-300 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex flex-col items-center gap-2.5 group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Sparkles size={18} />
-                  封存当前思绪，生成日记
+                  <div className="w-[60px] h-[60px] rounded-2xl bg-sage-50 text-sage-primary flex items-center justify-center shadow-sm group-hover:bg-sage-100 transition-colors">
+                    <Sparkles size={24} />
+                  </div>
+                  <span className="text-[13px] font-medium text-sage-dark">封存日记</span>
                 </button>
                 
+                <button
+                  onClick={() => {
+                    setShowActionSheet(false);
+                    setShowConfirm(true);
+                  }}
+                  className="flex flex-col items-center gap-2.5 group"
+                >
+                  <div className="w-[60px] h-[60px] rounded-2xl bg-red-50 text-red-500 flex items-center justify-center shadow-sm group-hover:bg-red-100 transition-colors">
+                    <Trash2 size={24} />
+                  </div>
+                  <span className="text-[13px] font-medium text-sage-dark">重置对话</span>
+                </button>
+              </div>
+              
+              <div className="max-w-md mx-auto mt-6 space-y-4">
                 {process.env.NODE_ENV === 'development' && (
                   <button
                     onClick={() => {
                       setShowActionSheet(false);
                       
-                      // 导出对话逻辑
                       let exportText = "";
                       let roundCount = 0;
 
@@ -811,6 +855,19 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           </>
         )}
       </AnimatePresence>
+      </div>
+
+      <ConfirmModal
+        isOpen={showConfirm}
+        title="重置当前对话？"
+        description="这将会彻底清空当前对话，且永久不可恢复。确定要重新开始吗？"
+        confirmText="清空对话"
+        onConfirm={() => {
+          setShowConfirm(false);
+          executeClearChat();
+        }}
+        onCancel={() => setShowConfirm(false)}
+      />
     </main>
   );
 }
