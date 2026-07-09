@@ -82,8 +82,8 @@ function DiaryCardItem({ diary, index, timeStr, diaryToDelete, handleDeleteDiary
             {diary.core_emotion}
           </span>
         </div>
-        <p className="text-sage-dark/90 text-[15.5px] font-medium leading-relaxed transition-colors line-clamp-4">
-          "{diary.insight}"
+        <p className="text-sage-dark/90 text-[17px] font-medium leading-relaxed transition-colors line-clamp-4">
+          {diary.title}
         </p>
       </motion.div>
     </motion.div>

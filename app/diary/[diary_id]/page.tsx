@@ -27,6 +27,12 @@ function EditableBlock({
   const [isEditing, setIsEditing] = useState(false);
   const [val, setVal] = useState(content);
 
+  useEffect(() => {
+    if (!isEditing) {
+      setVal(content);
+    }
+  }, [content, isEditing]);
+
   const handleSave = () => {
     setIsEditing(false);
     if (val !== content) {
@@ -34,10 +40,10 @@ function EditableBlock({
     }
   };
 
-  const containerClasses = `relative group w-full transition-colors duration-300 ${!isEditing ? "cursor-text" : ""}`;
+  const containerClasses = `relative group w-full transition-colors duration-300`;
 
   return (
-    <div className={containerClasses} onClick={() => { if (!isEditing) setIsEditing(true); }}>
+    <div className={containerClasses}>
       {label && (
         <div className="text-[11px] font-bold tracking-widest text-sage-muted/60 uppercase mb-1.5">
           {label}
@@ -45,37 +51,200 @@ function EditableBlock({
       )}
       
       <div className="relative w-full">
-        {isEditing ? (
-          <>
-            {/* Hidden div to drive native height matching exactly */}
-            <div className={`invisible whitespace-pre-wrap leading-relaxed ${textClassName} break-words`} aria-hidden="true">
-              {val + ' '}
-            </div>
-            {/* Absolute textarea overlay */}
-            <textarea
-              className={`absolute top-0 left-0 w-full h-full bg-transparent border-none outline-none ring-0 p-0 m-0 resize-none overflow-hidden text-sage-dark leading-relaxed whitespace-pre-wrap break-words ${textClassName}`}
-              value={val}
-              onChange={(e) => setVal(e.target.value)}
-              onBlur={handleSave}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setVal(content);
-                  setIsEditing(false);
-                }
-                if (!multiline && e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSave();
-                }
-              }}
-              autoFocus
-            />
-          </>
-        ) : (
-          <div className={`text-sage-dark leading-relaxed whitespace-pre-wrap ${textClassName} break-words`}>
-            {content || <span className="text-sage-muted/40 italic">{placeholder}</span>}
-          </div>
-        )}
+        {/* Hidden div to drive native height matching exactly */}
+        <div className={`invisible whitespace-pre-wrap leading-relaxed ${textClassName} break-words`} aria-hidden="true">
+          {(val || placeholder) + (val?.endsWith('\n') ? ' ' : '')}
+        </div>
+        {/* Absolute textarea overlay - Always present so clicks place cursor natively */}
+        <textarea
+          className={`absolute top-0 left-0 w-full h-full bg-transparent border-none outline-none ring-0 p-0 m-0 resize-none overflow-hidden text-sage-dark leading-relaxed whitespace-pre-wrap break-words ${textClassName} placeholder:text-sage-muted/40 placeholder:italic placeholder:font-normal`}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onFocus={() => setIsEditing(true)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setVal(content);
+              e.currentTarget.blur();
+            }
+            if (!multiline && e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+          placeholder={placeholder}
+        />
       </div>
+    </div>
+  );
+}
+
+function EditableTag({ 
+  initialValue, 
+  onUpdate, 
+  onRemove,
+  onSplit,
+  autoFocus = false,
+  isEmptyFallback = false
+}: { 
+  initialValue: string; 
+  onUpdate: (val: string) => void; 
+  onRemove: () => void;
+  onSplit?: (left: string, right: string) => void;
+  autoFocus?: boolean;
+  isEmptyFallback?: boolean;
+}) {
+  const [val, setVal] = useState(initialValue);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [autoFocus]);
+
+  useEffect(() => {
+    setVal(initialValue);
+  }, [initialValue]);
+
+  const handleBlur = () => {
+    const trimmed = val.trim();
+    if (!trimmed && !isEmptyFallback) {
+      onRemove();
+    } else if (trimmed !== initialValue) {
+      onUpdate(trimmed);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // 忽略输入法正在组合输入（打中文拼音选词）时的按键事件
+    if (e.nativeEvent.isComposing) return;
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+    if (e.key === 'Escape') {
+      setVal(initialValue);
+      e.currentTarget.blur();
+    }
+    if (e.key === ' ' && onSplit) {
+      e.preventDefault();
+      const cursor = inputRef.current?.selectionStart || 0;
+      const left = val.slice(0, cursor).trim();
+      const right = val.slice(cursor).trim();
+      
+      // 绝对禁止在没有实质内容的情况下裂变（防止无限生成空标签）
+      if (!left && !right) return;
+      
+      onSplit(left, right);
+    }
+  };
+
+  const displayVal = val || (isEmptyFallback ? "未觉察到明显身体感受" : " ");
+
+  return (
+    <span className={`relative inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all group ${
+      isEmptyFallback && !val 
+        ? "bg-sage-dark/[0.015] text-sage-muted/70 border-sage-dark/[0.03] cursor-text" 
+        : "bg-sage-dark/[0.03] text-sage-dark/85 border-sage-dark/5 hover:bg-sage-dark/[0.05]"
+    }`}>
+      <span className={`w-1 h-1 rounded-full shrink-0 ${isEmptyFallback && !val ? "bg-sage-muted/30" : "bg-sage-primary/50"}`} />
+      <span className="relative inline-flex items-center min-w-[10px]">
+        {/* Invisible span purely for width calculation */}
+        <span className={`invisible whitespace-pre ${isEmptyFallback && !val ? 'italic text-[13px]' : ''}`} aria-hidden="true">
+          {displayVal}
+        </span>
+        
+        {/* Visible text layer when not editing (especially for placeholders) */}
+        {isEmptyFallback && !val && (
+          <span className="absolute inset-0 flex items-center text-[13px] italic pointer-events-none whitespace-nowrap">
+            未觉察到明显身体感受
+          </span>
+        )}
+        
+        <input
+          ref={inputRef}
+          className={`absolute inset-0 w-full h-full bg-transparent border-none outline-none ring-0 p-0 m-0 text-sage-dark/85 text-[13px] ${isEmptyFallback && !val ? "opacity-0 focus:opacity-100" : ""}`}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+        />
+      </span>
+    </span>
+  );
+}
+
+function EditableTagsBlock({ tags, onSave }: { tags: string[], onSave: (tags: string[]) => void }) {
+  const [internalTags, setInternalTags] = useState(tags);
+  const [autoFocusIdx, setAutoFocusIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    setInternalTags(prev => {
+      const validParentTags = tags.filter(t => t.trim().length > 0).join(",");
+      const validInternalTags = prev.filter(t => t.trim().length > 0).join(",");
+      if (validParentTags !== validInternalTags) {
+        return tags;
+      }
+      return prev;
+    });
+  }, [tags]);
+
+  const updateTag = (index: number, newVal: string) => {
+    const next = [...internalTags];
+    next[index] = newVal;
+    setInternalTags(next);
+    onSave(next.filter(t => t.trim().length > 0));
+  };
+
+  const removeTag = (index: number) => {
+    const next = [...internalTags];
+    next.splice(index, 1);
+    setInternalTags(next);
+    onSave(next.filter(t => t.trim().length > 0));
+  };
+
+  const handleSplit = (index: number, left: string, right: string) => {
+    const next = [...internalTags];
+    next.splice(index, 1, left, right);
+    setInternalTags(next);
+    onSave(next.filter(t => t.trim().length > 0));
+    
+    if (!left && right) {
+      setAutoFocusIdx(index);
+    } else {
+      setAutoFocusIdx(index + 1);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2 items-center">
+      {internalTags.length > 0 ? (
+        internalTags.map((tag, i) => (
+          <EditableTag 
+            key={`${tag}-${i}`} 
+            initialValue={tag} 
+            autoFocus={autoFocusIdx === i}
+            onUpdate={(val) => updateTag(i, val)} 
+            onRemove={() => removeTag(i)} 
+            onSplit={(left, right) => handleSplit(i, left, right)}
+          />
+        ))
+      ) : (
+        <EditableTag 
+          initialValue="" 
+          isEmptyFallback={true}
+          autoFocus={autoFocusIdx === 0}
+          onUpdate={(val) => {
+            const next = [val];
+            setInternalTags(next);
+            onSave(next.filter(t => t.trim().length > 0));
+          }} 
+          onRemove={() => {}} 
+          onSplit={(left, right) => handleSplit(0, left, right)}
+        />
+      )}
     </div>
   );
 }
@@ -322,19 +491,13 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
           </div>
         </motion.div>
 
-        {/* --- SomaTags Block --- */}
-        {content.body_sensation && content.body_sensation.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="flex flex-wrap gap-2">
-            {content.body_sensation.map((tag: string, i: number) => (
-              <span 
-                key={tag + i} 
-                className="px-4 py-2 bg-white/60 backdrop-blur text-sage-dark text-sm rounded-full border border-sage-light/60 shadow-sm"
-              >
-                #{tag}
-              </span>
-            ))}
-          </motion.div>
-        )}
+        {/* --- SomaTags Block (身体感受) --- */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+          <EditableTagsBlock 
+            tags={content.body_sensation || []} 
+            onSave={(newTags) => updateDiaryField('body_sensation', newTags as any)} 
+          />
+        </motion.div>
 
         {/* --- Fact Block --- */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="bg-sage-dark/[0.02] rounded-xl p-4 border border-sage-dark/5">
