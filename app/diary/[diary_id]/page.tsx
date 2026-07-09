@@ -2,6 +2,7 @@
 
 import { use, useEffect, useLayoutEffect, useState, useRef } from "react";
 import { fetchWithAuth } from "@/lib/api";
+import ReactMarkdown from "react-markdown";
 import Cookies from "js-cookie";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -259,6 +260,7 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
   const [loadError, setLoadError] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showRawChat, setShowRawChat] = useState(false);
+  const [showFullNarrative, setShowFullNarrative] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -530,7 +532,7 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
         {/* --- Reframing Block --- */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4 }} className="bg-sage-dark/[0.02] rounded-xl p-4 border border-sage-dark/5">
            <EditableBlock 
-             label="换个视角看看呗" 
+             label="你的好朋友对你说" 
              content={content.reframing} 
              onSave={(val) => updateDiaryField('reframing', val)} 
              placeholder="试着像朋友一样，安慰现在的自己"
@@ -597,6 +599,44 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
             </div>
           </div>
         </motion.div>
+
+        {/* --- Narrative Module --- */}
+        {content.narrative && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
+            className="w-full mt-8 max-w-2xl mx-auto"
+          >
+            <div className="bg-sage-dark/[0.015] border border-sage-dark/5 rounded-3xl p-6 sm:p-8 relative overflow-hidden transition-all duration-500">
+              <h3 className="text-[12px] font-bold tracking-widest text-sage-muted/70 uppercase mb-6 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-sage-primary/50"></span>
+                深度觉察日记
+              </h3>
+              
+              <div className={`prose prose-sm sm:prose-base prose-sage max-w-none transition-all duration-700 relative text-sage-dark/85 leading-relaxed ${
+                showFullNarrative ? 'max-h-[5000px]' : 'max-h-[140px] overflow-hidden'
+              }`}>
+                <ReactMarkdown>{content.narrative}</ReactMarkdown>
+                
+                {!showFullNarrative && (
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none" />
+                )}
+              </div>
+
+              {!showFullNarrative && (
+                <div className="mt-2 flex justify-center relative z-10">
+                  <button
+                    onClick={() => setShowFullNarrative(true)}
+                    className="text-[11px] tracking-widest text-sage-muted/60 hover:text-sage-primary/90 transition-colors"
+                  >
+                    展开阅读
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
 
         {/* --- Chat Log Reveal Button --- */}
         <div className="flex justify-center mt-8 mb-4">
