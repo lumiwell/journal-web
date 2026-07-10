@@ -13,6 +13,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isExtractingDiary: boolean;
   setIsExtractingDiary: (value: boolean) => void;
 }
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   logout: () => {},
+  refreshUser: async () => {},
   isExtractingDiary: false,
   setIsExtractingDiary: () => {},
 });
@@ -30,25 +32,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isExtractingDiary, setIsExtractingDiary] = useState(false);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const token = Cookies.get('auth_token');
-      if (token) {
-        try {
-          const res = await fetchWithAuth('/api/v1/users/me');
-          if (res.ok) {
-            const data = await res.json();
-            setUser(data);
-          } else {
-            Cookies.remove('auth_token');
-          }
-        } catch (error) {
-          console.error("Failed to fetch user", error);
+  const fetchUser = async () => {
+    const token = Cookies.get('auth_token');
+    if (token) {
+      try {
+        const res = await fetchWithAuth('/api/v1/users/me');
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data);
+        } else {
+          Cookies.remove('auth_token');
+          setUser(null);
         }
+      } catch (error) {
+        console.error("Failed to fetch user", error);
+        setUser(null);
       }
-      setLoading(false);
-    };
+    } else {
+      setUser(null);
+    }
+    setLoading(false);
+  };
 
+  useEffect(() => {
     fetchUser();
   }, []);
 
@@ -59,7 +65,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout, isExtractingDiary, setIsExtractingDiary }}>
+    <AuthContext.Provider value={{ user, loading, logout, refreshUser: fetchUser, isExtractingDiary, setIsExtractingDiary }}>
       {children}
     </AuthContext.Provider>
   );

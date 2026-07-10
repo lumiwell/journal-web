@@ -112,7 +112,7 @@ export default function Header() {
                   href="/register"
                   className="text-sm bg-sage-primary text-white px-4 py-1.5 rounded-full hover:bg-sage-dark font-medium transition-colors shadow-sm"
                 >
-                  注册
+                  免费开始
                 </Link>
               </div>
             )}

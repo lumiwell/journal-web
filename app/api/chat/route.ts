@@ -49,7 +49,8 @@ export async function POST(req: Request) {
       message: {
         role: lastMsg.role || "user",
         content: content
-      }
+      },
+      context_diary_id: body.context_diary_id || null
     };
     
     console.log("[BFF] Forwarding payload to backend:", JSON.stringify(payload));

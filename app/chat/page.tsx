@@ -5,6 +5,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const topic = typeof sp.topic === 'string' ? sp.topic : undefined;
   const t = typeof sp.t === 'string' ? sp.t : undefined;
+  const context_diary_id = typeof sp.context_diary_id === 'string' ? sp.context_diary_id : undefined;
 
   const headersList = await headers();
   const sessionId = headersList.get("x-guest-session-id");
@@ -17,5 +18,5 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
     );
   }
 
-  return <ChatUI sessionId={sessionId} topic={topic} t={t} />;
+  return <ChatUI sessionId={sessionId} topic={topic} t={t} contextDiaryId={context_diary_id} />;
 }

@@ -7,7 +7,7 @@ import Cookies from "js-cookie";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Trash2, ArrowRight } from "lucide-react";
 import ConfirmModal from "@/components/ConfirmModal";
 
 function EditableBlock({ 
@@ -263,6 +263,53 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
   const [showFullNarrative, setShowFullNarrative] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showExploreModal, setShowExploreModal] = useState(false);
+  const [isCheckingExplore, setIsCheckingExplore] = useState(false);
+
+  const handleContinueExplore = async () => {
+    setIsCheckingExplore(true);
+    try {
+      const sessionId = Cookies.get("guest_session_id");
+      const msgRes = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { cache: 'no-store' });
+      if (msgRes.ok) {
+        const msgs = await msgRes.json();
+        // Count unprocessed user messages
+        const unprocessed = msgs.filter((m: any) => m.role === "user" && !m.diary_id).length;
+        if (unprocessed > 0) {
+          setShowExploreModal(true);
+        } else {
+          router.push(`/chat?context_diary_id=${diary.id}`);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      // Fallback
+      router.push(`/chat?context_diary_id=${diary.id}`);
+    } finally {
+      setIsCheckingExplore(false);
+    }
+  };
+
+  const handleForceExplore = async () => {
+    try {
+      const sessionId = Cookies.get("guest_session_id");
+      const res = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { method: "DELETE" });
+      if (!res.ok) {
+        if (res.status === 429) {
+          alert("今日清空次数已用尽，无法强行开启新探索。请先将当前思绪结案为日记。");
+        } else {
+          alert("清空失败，请重试");
+        }
+        setShowExploreModal(false);
+        return;
+      }
+      setShowExploreModal(false);
+      router.push(`/chat?context_diary_id=${diary.id}`);
+    } catch (e) {
+      console.error(e);
+      alert("操作失败，请重试");
+    }
+  };
 
   const handleDeleteDiary = () => {
     setShowActionSheet(false);
@@ -638,11 +685,19 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
           </motion.div>
         )}
 
-        {/* --- Chat Log Reveal Button --- */}
-        <div className="flex justify-center mt-8 mb-4">
+        {/* --- Action Buttons (Explore / Raw Chat) --- */}
+        <div className="flex flex-col items-center mt-4 mb-6 gap-8">
+          <button 
+            onClick={handleContinueExplore}
+            disabled={isCheckingExplore}
+            className="flex items-center gap-2 bg-sage-primary text-white px-8 py-3.5 rounded-full text-[15px] font-medium hover:bg-sage-dark transition-all duration-300 shadow-sm disabled:opacity-50"
+          >
+            基于本日记继续探索 <ArrowRight size={16} />
+          </button>
+          
           <button 
             onClick={() => setShowRawChat(!showRawChat)}
-            className="text-[11px] text-sage-muted/40 hover:text-sage-primary/80 transition-colors tracking-widest flex items-center gap-2 px-6 py-3"
+            className="text-[11px] text-sage-muted/40 hover:text-sage-primary/80 transition-colors tracking-widest flex items-center gap-2 px-6 py-2"
           >
             {showRawChat ? '收起对话' : '翻阅原始对话'}
           </button>
@@ -728,6 +783,48 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
         onConfirm={executeDelete}
         onCancel={() => setShowConfirm(false)}
       />
+
+      {/* Explore Conflict Modal */}
+      <AnimatePresence>
+        {showExploreModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowExploreModal(false)}
+              className="fixed inset-0 z-[130] bg-sage-dark/20 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[140] w-[90%] max-w-[360px] bg-white/95 backdrop-blur-xl rounded-[28px] p-8 shadow-[0_10px_40px_rgba(0,0,0,0.1)] border border-sage-light/30"
+            >
+              <h3 className="text-xl font-medium text-sage-dark text-center mb-3">有一段思绪正在流淌...</h3>
+              <p className="text-sage-dark/80 text-[14px] leading-relaxed text-center mb-8">
+                你的心流还未走到终点，当前还有一段未被记录的对话。<br/><br/>
+                如果此时开启新探索，这些尚未沉淀的感悟将会随风飘散。
+              </p>
+              
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => router.push("/chat")}
+                  className="w-full bg-sage-primary text-white py-3.5 rounded-2xl text-[15px] font-medium hover:bg-sage-dark transition-all duration-300 shadow-sm"
+                >
+                  去将它沉淀为日记
+                </button>
+                <button
+                  onClick={handleForceExplore}
+                  className="w-full bg-red-50/50 text-red-500 py-3.5 rounded-2xl text-[14px] font-medium hover:bg-red-50 transition-all duration-300 border border-red-100"
+                >
+                  随风飘散，开启新探索
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

@@ -3,6 +3,10 @@
 import { useState } from "react";
 import Cookies from "js-cookie";
 import { fetchWithAuth } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check } from "lucide-react";
 
 export default function LoginPage({ customTitle, customSubtitle }: { customTitle?: string, customSubtitle?: string }) {
   const [step, setStep] = useState<1 | 2>(1);
@@ -10,9 +14,13 @@ export default function LoginPage({ customTitle, customSubtitle }: { customTitle
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  
+  const router = useRouter();
+  const { refreshUser } = useAuth();
 
-  const title = customTitle || "回到我的时间线";
-  const subtitle = customSubtitle || "为漂泊的思绪，安一个永远的家";
+  const title = customTitle || "欢迎回到内心角落";
+  const subtitle = customSubtitle || "继续我们的探索，你的珍贵回忆都在这里";
 
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,12 +78,17 @@ export default function LoginPage({ customTitle, customSubtitle }: { customTitle
         Cookies.set("guest_session_id", session_id, { expires: 365, path: "/" });
       }
 
-      // Hard refresh to reload layout and fetch user
-      const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/";
-      window.location.href = returnTo;
+      await refreshUser();
+      
+      setShowToast(true);
+      
+      setTimeout(() => {
+        const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/";
+        router.push(returnTo);
+      }, 1500);
+      
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -142,6 +155,22 @@ export default function LoginPage({ customTitle, customSubtitle }: { customTitle
           </form>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-3 bg-white/95 backdrop-blur-xl px-6 py-3.5 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-sage-light/40"
+          >
+            <div className="w-6 h-6 rounded-full bg-sage-primary flex items-center justify-center text-white shrink-0">
+              <Check size={14} strokeWidth={3} />
+            </div>
+            <span className="text-[15px] font-medium text-sage-dark tracking-wide">欢迎回来，数据已同步</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

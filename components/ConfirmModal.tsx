@@ -43,7 +43,7 @@ export default function ConfirmModal({
             <h3 className="text-[17px] font-semibold text-sage-dark mb-3 tracking-wide">
               {title}
             </h3>
-            <p className="text-[14px] text-sage-muted/90 mb-8 leading-relaxed px-2">
+            <p className="text-[14px] text-sage-muted/90 mb-8 leading-relaxed px-2 whitespace-pre-wrap">
               {description}
             </p>
             

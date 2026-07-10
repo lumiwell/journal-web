@@ -16,19 +16,20 @@ import ConfirmModal from "./ConfirmModal";
 // 🕒 情绪断代时间配置（方便本地测试）
 // 测试时可以把这些值改成较短的时间，例如 1 * 60 * 1000 (1分钟)
 // ==========================================
-const IDLE_TIMEOUT_MS = 1 * 60 * 1000;         // 常规代谢：默认 6 小时
+const IDLE_TIMEOUT_MS = 1 * 60 * 1000;         // 常规代谢：默认 6 小时 (测试环境 1 分钟)
 const AGE_TIMEOUT_MS = 24 * 60 * 60 * 1000;        // 极限代谢：会话总寿命大于 24 小时
 const SHORT_IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000;  // 极限代谢附属条件：闲置大于 2 小时
 
-export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: string, diaryId?: string, topic?: string, t?: string }) {
+export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }: { sessionId: string, diaryId?: string, topic?: string, t?: string, contextDiaryId?: string }) {
   const [input, setInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStepIdx, setGenerationStepIdx] = useState(0);
-  const { isExtractingDiary: backgroundGenerating, setIsExtractingDiary: setBackgroundGenerating } = useAuth();
+  const [contextDiaryTitle, setContextDiaryTitle] = useState("");
+  const { user, isExtractingDiary: backgroundGenerating, setIsExtractingDiary: setBackgroundGenerating } = useAuth();
   const [errorMsg, setErrorMsg] = useState("");
-  const [showCurtain, setShowCurtain] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [remainingClearCount, setRemainingClearCount] = useState<number | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [viewportHeight, setViewportHeight] = useState('100dvh');
   const router = useRouter();
@@ -54,11 +55,21 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
 
   const executeClearChat = async () => {
     try {
-      await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { method: "DELETE" });
+      const res = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { method: "DELETE" });
+      if (!res.ok) {
+        if (res.status === 429) {
+          setErrorMsg("今日清空次数已用尽，请沉淀日记以开启新篇章");
+        } else {
+          setErrorMsg("清空对话失败，请重试");
+        }
+        return;
+      }
       setMessages([]);
       setMessageDiaryMap({});
       setShowActionSheet(false);
-      window.location.reload();
+      localStorage.removeItem("current_context_diary_id");
+      setActiveContextDiaryId(null);
+      setContextDiaryTitle(null);
     } catch (err) {
       console.error("Failed to clear chat", err);
       setErrorMsg("清空对话失败，请重试");
@@ -88,11 +99,43 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   const hasPrefilledRef = useRef(false);
   const isInitialScroll = useRef(true);
 
+  const [activeContextDiaryId, setActiveContextDiaryId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (contextDiaryId) {
+      localStorage.setItem("current_context_diary_id", contextDiaryId);
+      setActiveContextDiaryId(contextDiaryId);
+    } else {
+      const stored = localStorage.getItem("current_context_diary_id");
+      if (stored) {
+        setActiveContextDiaryId(stored);
+      }
+    }
+  }, [contextDiaryId]);
+
+  // Fetch context diary title if continuing exploration
+  useEffect(() => {
+    if (activeContextDiaryId) {
+      fetchWithAuth(`/api/v1/diaries/${activeContextDiaryId}?session_id=${sessionId}`)
+        .then(res => {
+          if (res.ok) return res.json();
+          throw new Error("Failed to load context diary");
+        })
+        .then(data => {
+          if (data && data.title) setContextDiaryTitle(data.title);
+        })
+        .catch(err => console.error("Error loading context diary:", err));
+    } else {
+      setContextDiaryTitle(null);
+    }
+  }, [activeContextDiaryId, sessionId]);
+
   const { messages, setMessages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: {
-        session_id: sessionId
+        session_id: sessionId,
+        context_diary_id: activeContextDiaryId
       },
       headers: {
         "Authorization": Cookies.get("auth_token") ? `Bearer ${Cookies.get("auth_token")}` : ""
@@ -111,6 +154,17 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
     },
     onError: (err) => {
       console.error("❌ [useChat 调试] 3. 解析过程中发生严重报错:", err);
+      try {
+        const errorData = JSON.parse(err.message);
+        if (errorData.detail === "SESSION_TURN_LIMIT_REACHED") {
+          return; // Handled by UI
+        }
+        if (errorData.detail === "REGISTRATION_REQUIRED") {
+          return; // Handled by UI
+        }
+      } catch (e) {
+        // Not JSON
+      }
       setErrorMsg(`会话中断: ${err.message}`);
     },
   });
@@ -133,12 +187,8 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         setMessageDiaryMap(map);
 
         let displayData = data;
-        let willShowCurtain = false;
-
         if (backgroundGenerating) {
-          // 如果后台正在生成，强制隐藏幕布
-          setShowCurtain(false);
-          // 并且隐藏掉尚未封存的老消息（它们正在被打包生成日记），避免闪烁或干扰“新篇章”
+          // 如果后台正在生成，隐藏掉尚未封存的老消息（它们正在被打包生成日记），避免闪烁或干扰“新篇章”
           displayData = data.filter((msg: any) => msg.diary_id);
         } else {
           if (data.length > 0 && data[0].created_at) {
@@ -149,20 +199,10 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
             const now = Date.now();
             
             let lastActiveTime = lastTime;
-            const acknowledgedAt = parseInt(sessionStorage.getItem(`curtain_acknowledged_${sessionId}`) || "0", 10);
-            const dismissedAt = parseInt(sessionStorage.getItem(`curtain_dismissed_${sessionId}`) || "0", 10);
-            const latestAction = Math.max(acknowledgedAt, dismissedAt);
-            
-            if (latestAction > lastTime) {
-              lastActiveTime = latestAction;
-            }
-            
-            const idleTime = now - lastActiveTime;
-            const ageTime = now - firstTime;
-            
-            if (idleTime > IDLE_TIMEOUT_MS || (ageTime > AGE_TIMEOUT_MS && idleTime > SHORT_IDLE_TIMEOUT_MS)) {
-              setShowCurtain(true);
-              willShowCurtain = true;
+            if (now - lastTime > IDLE_TIMEOUT_MS) {
+              setIsLongIdleTime(true);
+            } else {
+              setIsLongIdleTime(false);
             }
           }
         }
@@ -225,11 +265,13 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || input.length > 1000) return;
     sendMessage({ text: input });
     setInput("");
     setErrorMsg(""); // clear error on new message
   };
+
+  const [isLongIdleTime, setIsLongIdleTime] = useState(false);
 
   const handleGenerateDiary = async (isFromCurtain: boolean = false) => {
     if (isGenerating || backgroundGenerating) return;
@@ -237,14 +279,13 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
     if (isFromCurtain) {
       // Async background generation without blocking UI
       setBackgroundGenerating(true);
-      setShowCurtain(false);
       
       // 清空当前 UI 的聊天记录，开启真正的“全新篇章”
       setMessages([]);
+      localStorage.removeItem("current_context_diary_id");
+      setActiveContextDiaryId(null);
+      setContextDiaryTitle(null);
       
-      // 记录关闭幕布的时间，视同活跃
-      sessionStorage.setItem(`curtain_dismissed_${sessionId}`, Date.now().toString());
-
       // 评估标签的新鲜度。如果是刚刚在首页点击带上的标签（t 存在且小于 6 小时），则保留它！
       // 如果标签是很久以前的（比如旧会话残留在 URL 里的），则彻底清除它，回到默认空白状态。
       const isTopicFresh = t && (Date.now() - parseInt(t, 10) < IDLE_TIMEOUT_MS);
@@ -269,6 +310,10 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
                 // 如果后端明确说没有新消息，说明我们之前的某个超时请求已经成功把消息结晶成了日记！
                 const errData = await res.json().catch(() => ({}));
                 const detailStr = typeof errData.detail === 'string' ? errData.detail : "";
+                if (res.status === 401 || detailStr === "REGISTRATION_REQUIRED") {
+                  router.push("/register?returnTo=/chat");
+                  return;
+                }
                 if (detailStr.includes("No new messages") || detailStr.includes("无可用的新消息")) {
                   isRunning = false;
                 } else {
@@ -320,17 +365,28 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
       
       if (res.ok) {
         isSuccess = true;
+        localStorage.removeItem("current_context_diary_id");
+        setActiveContextDiaryId(null);
+        setContextDiaryTitle(null);
         const diary = await res.json();
         router.push(`/diary/${diary.id}`);
         return;
       } else if (res.status === 429) {
         setErrorMsg("日记正在生成中，请稍后再试...");
         return;
+      } else if (res.status === 401) {
+        router.push("/register?returnTo=/chat");
+        return;
       } else if (res.status === 504 || res.status === 502) {
         throw new Error("Proxy timeout"); // Will be caught and handled below
       } else {
         const errData = await res.json();
         const detailStr = typeof errData.detail === 'string' ? errData.detail : "无可用的新消息生成日记";
+        
+        if (detailStr === "REGISTRATION_REQUIRED") {
+          router.push("/register?returnTo=/chat");
+          return;
+        }
         
         // 如果后端发现没有新消息，可能是在我们之前的请求中已经生成成功了
         if (detailStr.includes("No new messages") || detailStr.includes("无可用的新消息")) {
@@ -357,6 +413,9 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
             // 如果这条消息已经被分配了 diary_id，说明日记已经绝对生成成功了，且精准定位！
             if (updatedMsgInServer && updatedMsgInServer.diary_id) {
               isSuccess = true;
+              localStorage.removeItem("current_context_diary_id");
+              setActiveContextDiaryId(null);
+              setContextDiaryTitle(null);
               router.push(`/diary/${updatedMsgInServer.diary_id}`);
               return;
             }
@@ -401,21 +460,6 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
     }
   };
 
-  const startNewChapter = () => {
-    sessionStorage.setItem(`curtain_dismissed_${sessionId}`, Date.now().toString());
-    setShowCurtain(false);
-  };
-
-  const handleReviewDiary = (diaryId: string) => {
-    sessionStorage.setItem(`curtain_dismissed_${sessionId}`, Date.now().toString());
-    router.push(`/diary/${diaryId}`);
-  };
-
-  const handleDismissCurtain = () => {
-    setShowCurtain(false);
-    sessionStorage.setItem(`curtain_acknowledged_${sessionId}`, Date.now().toString());
-  };
-
   const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
   const lastMsgDiaryId = lastUserMsg ? messageDiaryMap[lastUserMsg.id] : null;
 
@@ -430,6 +474,12 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
   const userMsgCount = messages.filter(m => m.role === "user" && !messageDiaryMap[m.id]).length;
   const canGenerate = userMsgCount >= 2;
   const hasUnprocessed = userMsgCount > 0;
+  const hasReachedTurnLimit = userMsgCount >= 30;
+  
+  // Anonymous limits
+  const isAnonymous = !Cookies.get("auth_token"); // Check if user is anonymous (simple check)
+  const isApproachingAnonLimit = isAnonymous && userMsgCount >= 8 && userMsgCount < 10;
+  const hasReachedAnonLimit = isAnonymous && userMsgCount >= 10;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -460,7 +510,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
         }, 100);
       }
     }
-  }, [messages, isInitializing, viewportHeight]);
+  }, [messages, isInitializing, viewportHeight, status, hasReachedTurnLimit, isLongIdleTime]);
 
   return (
     <main 
@@ -490,92 +540,18 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           {/* 全局的进度胶囊已移至 Header.tsx */}
         </AnimatePresence>
         
-        {showCurtain && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/70">
-              <div className="p-8 max-w-md text-center mx-4">
-                {hasUnprocessed ? (
-                  <>
-                    <h3 className="text-xl font-medium text-sage-dark mb-4 tracking-wide">{canGenerate ? "旧的思绪依然在这里" : "倾诉尚未结晶"}</h3>
-                    <p className="text-sage-dark/80 text-[15px] mb-10 leading-relaxed">
-                      {canGenerate ? (
-                        <>
-                          自你上次倾诉已经过去了一段时间。<br/>
-                          你可以将之前的思绪结晶为日记，开启新的一天；或者掀开幕布，继续昨天的倾诉。
-                        </>
-                      ) : (
-                        <>
-                          你过去的倾诉内容较少，尚未满足生成日记的条件，且已停滞了一段时间。<br/><br/>
-                          你可以掀开幕布<span className="font-semibold">继续倾诉</span>，直到结晶为日记；<br/>
-                          或者<span className="font-semibold">直接开启新篇章</span>（过去的闲聊将被舍弃）。
-                        </>
-                      )}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="text-xl font-medium text-sage-dark mb-4 tracking-wide">思绪已妥善封存</h3>
-                    <p className="text-sage-dark/80 text-[15px] mb-10 leading-relaxed">
-                      你已主动将之前的倾诉结晶为日记，安全地保存在了时光中。<br/>现在，开启一段全新的旅程吧。
-                    </p>
-                  </>
-                )}
-                <div className="flex flex-col gap-4 max-w-xs mx-auto">
-                {hasUnprocessed ? (
-                  <>
-                    <button 
-                      onClick={() => handleGenerateDiary(true)}
-                      disabled={backgroundGenerating || isLoading}
-                      className="w-full bg-sage-primary text-white py-3.5 rounded-full text-[15px] font-medium hover:bg-sage-dark transition-all duration-300 shadow-sm disabled:opacity-50"
-                    >
-                      {canGenerate ? "封存日记，开启新篇章" : "直接开启新篇章"}
-                    </button>
-                    <button 
-                      onClick={handleDismissCurtain}
-                      disabled={backgroundGenerating || isGenerating}
-                      className="w-full bg-sage-light/50 text-sage-dark py-3.5 rounded-full text-[15px] font-medium hover:bg-sage-light/80 transition-all duration-300"
-                    >
-                      掀开幕布，继续倾诉
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button 
-                      onClick={startNewChapter}
-                      disabled={isGenerating}
-                      className="w-full bg-sage-primary text-white py-3.5 rounded-full text-[15px] font-medium hover:bg-sage-dark transition-all duration-300 shadow-sm"
-                    >
-                      开启新篇章
-                    </button>
-                    {lastMsgDiaryId && (
-                      <button 
-                        onClick={() => handleReviewDiary(lastMsgDiaryId)}
-                        className="w-full mt-3 bg-sage-light/20 text-sage-dark py-3.5 rounded-full text-[15px] font-medium hover:bg-sage-light/40 transition-all duration-300 shadow-sm border border-sage-light/30 flex items-center justify-center gap-2"
-                      >
-                        <Sparkles size={18} className="text-sage-primary" />
-                        翻阅已封存日记
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         <button 
           onClick={() => router.push('/')}
           className={`absolute top-4 sm:top-6 z-40 p-2.5 rounded-full transition-all duration-500 ${
-            showCurtain 
-              ? 'opacity-0 pointer-events-none translate-y-[-10px] left-4 sm:left-6 bg-white/50' 
-              : (isNavVisible 
+            isNavVisible 
                   ? 'opacity-100 translate-x-0 left-4 sm:left-6 bg-white/50 backdrop-blur-md text-sage-dark/70 hover:text-sage-dark hover:bg-white/70 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] border border-white/60' 
-                  : 'opacity-80 -translate-x-[65%] left-0 bg-sage-primary/90 backdrop-blur-md text-white border border-sage-primary/50 hover:-translate-x-1/4 hover:opacity-100 shadow-[2px_0_10px_rgba(163,177,138,0.4)]')
+                  : 'opacity-80 -translate-x-[65%] left-0 bg-sage-primary/90 backdrop-blur-md text-white border border-sage-primary/50 hover:-translate-x-1/4 hover:opacity-100 shadow-[2px_0_10px_rgba(163,177,138,0.4)]'
           }`}
         >
           <ChevronLeft size={24} strokeWidth={2.5} />
         </button>
 
-        <div className={`absolute top-4 sm:top-6 left-0 w-full h-[44px] z-50 transition-all duration-500 pointer-events-none ${showCurtain ? 'opacity-0 translate-y-[-10px]' : 'opacity-100 translate-y-0'}`}>
+        <div className="absolute top-4 sm:top-6 left-0 w-full h-[44px] z-50 transition-all duration-500 pointer-events-none opacity-100 translate-y-0">
           <GlobalGeneratingIndicator />
         </div>
 
@@ -589,16 +565,29 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           </motion.div>
         )}
 
-        <div ref={scrollContainerRef} className={`flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pt-6 pb-6 space-y-6 transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none overflow-hidden' : ''}`}>
+        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pt-6 pb-6 space-y-6 transition-all duration-700">
           {messages.length === 0 ? (
             <div className="text-center text-sage-muted h-full flex flex-col items-center justify-center">
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center">
-                <p className="text-lg text-sage-dark/80 mb-2">{emptyState.title}</p>
+                {contextDiaryTitle ? (
+                  <p className="text-lg text-sage-dark/80 mb-2">正在基于《{contextDiaryTitle}》继续探索</p>
+                ) : (
+                  <p className="text-lg text-sage-dark/80 mb-2">{emptyState.title}</p>
+                )}
                 <p className="text-sm">{emptyState.subtitle}</p>
               </motion.div>
             </div>
           ) : (
-            <AnimatePresence initial={false}>
+            <>
+              {contextDiaryTitle && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full flex justify-center mb-6 mt-2">
+                  <div className="bg-sage-light/20 text-sage-dark/70 text-[13px] px-5 py-2.5 rounded-full text-center flex items-center justify-center gap-2">
+                    <Sparkles size={14} className="text-orange-500/80" />
+                    正在基于《{contextDiaryTitle}》继续探索
+                  </div>
+                </motion.div>
+              )}
+              <AnimatePresence initial={false}>
             {messages.map((msg, index) => {
               const partsText = msg.parts && msg.parts.length > 0
                 ? msg.parts.filter((p: any) => p.type === "text").map((p: any) => p.text).join("")
@@ -660,8 +649,29 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
               return msgElement;
             })}
             </AnimatePresence>
+            </>
           )}
-          {isLoading && messages[messages.length - 1]?.role === "user" && (
+
+          {user && isLongIdleTime && hasUnprocessed && canGenerate && !isGenerating && !isLoading && !hasReachedAnonLimit && !hasReachedTurnLimit && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full flex justify-center my-6">
+              <div className="bg-sage-light/20 text-sage-dark/70 text-[13px] px-6 py-3 rounded-2xl max-w-[85%] text-center leading-relaxed">
+                距离上一次倾诉已经过去很久了。<br />
+                你可以点击 <button onClick={() => handleGenerateDiary(true)} className="text-sage-primary font-medium hover:underline inline">生成日记</button> 开启新篇章，也可继续当前话题。
+              </div>
+            </motion.div>
+          )}
+          
+          {hasReachedTurnLimit && status !== "streaming" && status !== "submitted" && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full flex justify-center my-6">
+              <div className="text-sage-dark/80 text-[14px] max-w-[85%] text-center leading-relaxed">
+                你已经走得很深了，现在是时候收获了。<br />
+                你可以点击 <button onClick={() => handleGenerateDiary(false)} disabled={isGenerating || isLoading} className="text-sage-primary font-medium hover:underline inline">生成日记</button>。<br/>
+                <span className="text-sage-dark/80 text-[13px] mt-1.5 inline-block">结晶为日记之后，你仍然可以基于日记继续对话与探索。</span>
+              </div>
+            </motion.div>
+          )}
+
+          {isLoading && messages[messages.length - 1]?.role === "user" && !hasReachedAnonLimit && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
               <div className="flex items-center gap-2 text-sage-muted px-1 py-4 text-[15px] tracking-wide">
                 <span className="opacity-80 text-[13px]">倾听中</span>
@@ -675,14 +685,34 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
           )}
         </div>
 
-        <div className={`w-full px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/70 sm:bg-white/50 backdrop-blur-md transition-all duration-700 ${showCurtain ? 'opacity-15 pointer-events-none select-none' : ''}`}>
-          <form onSubmit={handleSubmit} className="flex gap-2 items-end max-w-3xl mx-auto w-full">
-            <div className="flex-1 bg-white rounded-[20px] shadow-sm border border-sage-light/50 py-1 px-2">
+        <div className={`w-full px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/70 sm:bg-white/50 backdrop-blur-md transition-all duration-700`}>
+          {(isApproachingAnonLimit || hasReachedAnonLimit) && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto mb-2 text-center">
+              <button 
+                onClick={() => router.push('/register?returnTo=/chat')}
+                className="inline-block bg-gradient-to-r from-sage-50 to-orange-50 text-sage-dark/80 px-4 py-1.5 rounded-full text-[13px] shadow-sm font-medium cursor-pointer hover:-translate-y-0.5 hover:shadow-md active:scale-95 transition-all"
+              >
+                {hasReachedAnonLimit ? (
+                  <><span className="text-orange-500 font-semibold underline decoration-orange-500/30 underline-offset-2">免费开始</span>，解锁更多且记录不丢失 ✨</>
+                ) : (
+                  <>剩余 {10 - userMsgCount} 轮体验，<span className="text-orange-500 font-semibold underline decoration-orange-500/30 underline-offset-2">免费</span>解锁更多，记录不丢失 ✨</>
+                )}
+              </button>
+            </motion.div>
+          )}
+          
+          <form onSubmit={handleSubmit} className="flex gap-2 items-end max-w-3xl mx-auto w-full relative">
+            <div className="flex-1 bg-white rounded-[20px] shadow-sm border border-sage-light/50 py-1 px-2 relative overflow-hidden">
+              {/* Highlight backdrop layer for text exceeding 1000 characters */}
+              <div className="absolute inset-0 px-2 py-1.5 pointer-events-none text-[15px] leading-relaxed whitespace-pre-wrap break-words z-0" aria-hidden="true" style={{ color: 'transparent', height: textareaRef.current?.style.height }}>
+                <span>{input.slice(0, 1000)}</span>
+                <mark className="bg-orange-200/60 text-transparent">{input.slice(1000)}</mark>
+              </div>
               <textarea
                 ref={textareaRef}
-                className="w-full bg-transparent px-2 py-1.5 text-[15px] focus:outline-none placeholder-sage-muted text-sage-dark resize-none slim-scrollbar block leading-relaxed max-h-[120px]"
+                className={`w-full bg-transparent px-2 py-1.5 text-[15px] focus:outline-none placeholder-sage-muted text-sage-dark resize-none slim-scrollbar block leading-relaxed max-h-[120px] relative z-10 ${hasReachedAnonLimit || hasReachedTurnLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
                 style={{ overflowY: 'auto' }}
-                placeholder="此刻你在想些什么？"
+                placeholder={hasReachedAnonLimit ? "体验已完成，点击上方气泡免费开始..." : hasReachedTurnLimit ? "对话已满载，请结晶为日记..." : "此刻你在想些什么？"}
                 value={input}
                 rows={1}
                 onChange={(e) => {
@@ -691,14 +721,14 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
                   e.target.style.height = `${e.target.scrollHeight}px`;
                 }}
                 onKeyDown={handleKeyDown}
-                disabled={isGenerating}
+                disabled={isGenerating || hasReachedAnonLimit || hasReachedTurnLimit}
               />
             </div>
             
             {input.trim() ? (
               <button
                 type="submit"
-                disabled={isLoading || isGenerating}
+                disabled={isLoading || isGenerating || input.length > 1000 || hasReachedAnonLimit || hasReachedTurnLimit}
                 className="bg-sage-primary text-white w-[38px] h-[38px] rounded-full hover:bg-sage-dark disabled:opacity-40 transition-colors flex items-center justify-center shrink-0 shadow-sm mb-0.5"
               >
                 <Send size={16} className="-ml-0.5" />
@@ -714,6 +744,12 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
               </button>
             )}
           </form>
+          
+          {input.length > 900 && !hasReachedAnonLimit && !hasReachedTurnLimit && (
+            <div className={`text-right text-[12px] pr-12 pt-1 transition-colors ${input.length > 1000 ? 'text-red-500 font-medium' : 'text-orange-400'}`}>
+              {input.length}/1000
+            </div>
+          )}
         </div>
       </motion.div>
       
@@ -792,16 +828,34 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
                 </button>
                 
                 <button
-                  onClick={() => {
-                    setShowActionSheet(false);
-                    setShowConfirm(true);
+                  onClick={async () => {
+                    try {
+                      const res = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages/clear_limit`);
+                      if (res.ok) {
+                        const data = await res.json();
+                        if (data.remaining > 0) {
+                          setRemainingClearCount(data.remaining);
+                          setShowActionSheet(false);
+                          setShowConfirm(true);
+                        } else {
+                          setErrorMsg("今日清空次数已用尽，请沉淀日记以开启新篇章");
+                          setShowActionSheet(false);
+                        }
+                      }
+                    } catch (e) {
+                      // Fallback to just show confirm
+                      setRemainingClearCount(null);
+                      setShowActionSheet(false);
+                      setShowConfirm(true);
+                    }
                   }}
-                  className="flex flex-col items-center gap-2.5 group"
+                  disabled={!hasUnprocessed}
+                  className="flex flex-col items-center gap-2.5 group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="w-[60px] h-[60px] rounded-2xl bg-red-50 text-red-500 flex items-center justify-center shadow-sm group-hover:bg-red-100 transition-colors">
+                  <div className={`w-[60px] h-[60px] rounded-2xl flex items-center justify-center shadow-sm transition-colors ${!hasUnprocessed ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500 group-hover:bg-red-100'}`}>
                     <Trash2 size={24} />
                   </div>
-                  <span className="text-[13px] font-medium text-sage-dark">重置对话</span>
+                  <span className={`text-[13px] font-medium ${!hasUnprocessed ? 'text-gray-400' : 'text-sage-dark'}`}>重置对话</span>
                 </button>
               </div>
               
@@ -860,7 +914,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t }: { sessionId: st
       <ConfirmModal
         isOpen={showConfirm}
         title="重置当前对话？"
-        description="这将会彻底清空当前对话，且永久不可恢复。确定要重新开始吗？"
+        description={remainingClearCount !== null ? `这将会彻底清空当前尚未记录的对话。\n每天有 2 次强制清空对话的特权，您当前还剩余 ${remainingClearCount} 次。确定要使用吗？` : "这将会彻底清空当前尚未记录的对话。注意：每天仅可使用 2 次强制清空，是否继续？"}
         confirmText="清空对话"
         onConfirm={() => {
           setShowConfirm(false);
