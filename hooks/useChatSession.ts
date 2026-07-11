@@ -88,23 +88,20 @@ export function useChatSession(sessionId: string, backgroundGenerating: boolean,
         let displayData = data;
         if (backgroundGenerating) {
           displayData = data.filter((msg: any) => msg.diary_id);
-        } else {
-          if (data.length > 0 && data[0].created_at) {
-            const lastMsg = data[data.length - 1];
-            const lastTime = new Date(lastMsg.created_at.endsWith("Z") ? lastMsg.created_at : lastMsg.created_at + "Z").getTime();
-            if (Date.now() - lastTime > IDLE_TIMEOUT_MS) {
-              setIsLongIdleTime(true);
-            } else {
-              setIsLongIdleTime(false);
-            }
-          }
         }
 
-        const formatted = displayData.map((msg: any) => ({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-        }));
+        const formatted = displayData.map((msg: any) => {
+          let dateObj = new Date();
+          if (msg.created_at) {
+            dateObj = new Date(msg.created_at.endsWith("Z") ? msg.created_at : msg.created_at + "Z");
+          }
+          return {
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            createdAt: dateObj
+          };
+        });
         setMessages(formatted);
       }
     } catch (err) {
@@ -117,6 +114,23 @@ export function useChatSession(sessionId: string, backgroundGenerating: boolean,
   useEffect(() => {
     loadHistory();
   }, [sessionId, backgroundGenerating]); // 移除 setMessages 防止循环依赖
+
+  // 动态计算距离上一条消息是否闲置超时
+  useEffect(() => {
+    if (!messages || messages.length === 0) {
+      setIsLongIdleTime(false);
+      return;
+    }
+    
+    const lastMsg = messages[messages.length - 1];
+    const lastTime = lastMsg.createdAt ? new Date(lastMsg.createdAt).getTime() : Date.now();
+    
+    const checkIdle = () => {
+      setIsLongIdleTime(Date.now() - lastTime > IDLE_TIMEOUT_MS);
+    };
+    
+    checkIdle(); // 仅在加载和消息变动时检查，不使用定时器轮询，避免突然弹出的惊吓感
+  }, [messages]);
 
   const isLoading = status === "submitted" || status === "streaming";
 

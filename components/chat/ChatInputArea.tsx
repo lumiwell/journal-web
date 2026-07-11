@@ -94,8 +94,19 @@ export default function ChatInputArea({
               e.target.style.height = 'auto';
               e.target.style.height = `${e.target.scrollHeight}px`;
             }}
+            onFocus={() => {
+              // 仅在 iOS 下执行滚动修复。Android Chrome 原生支持视口高度自适应，如果执行此代码反而会导致严重的位置错乱（大片空白）。
+              const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+              if (isIOS) {
+                setTimeout(() => {
+                  window.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+                  document.body.scrollTop = 0;
+                  document.documentElement.scrollTop = 0;
+                }, 10);
+              }
+            }}
             onKeyDown={handleKeyDown}
-            disabled={isGenerating || hasReachedAnonLimit || hasReachedTurnLimit}
+            disabled={hasReachedAnonLimit || hasReachedTurnLimit}
           />
         </div>
         
@@ -103,6 +114,7 @@ export default function ChatInputArea({
           <button
             type="submit"
             disabled={isLoading || isGenerating || input.length > 1000 || hasReachedAnonLimit || hasReachedTurnLimit}
+            onMouseDown={(e) => e.preventDefault()} // 防止点击发送按钮时抢走输入框的焦点
             className="bg-sage-primary text-white w-[38px] h-[38px] rounded-full hover:bg-sage-dark disabled:opacity-40 transition-colors flex items-center justify-center shrink-0 shadow-sm mb-0.5"
           >
             <Send size={16} className="-ml-0.5" />
