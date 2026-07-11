@@ -1,0 +1,247 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Cookies from "js-cookie";
+import { fetchWithAuth } from "@/lib/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import GlobalGeneratingIndicator from "@/components/layout/GlobalGeneratingIndicator";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import ChatInputArea from "./ChatInputArea";
+import MessageList from "./MessageList";
+import { useDiaryGeneration } from "@/hooks/useDiaryGeneration";
+import GeneratingOverlay from "./GeneratingOverlay";
+import ChatActionSheet from "./ChatActionSheet";
+import { useChatScroll } from "@/hooks/useChatScroll";
+import { useChatSession } from "@/hooks/useChatSession";
+
+// ==========================================
+// 🕒 情绪断代时间配置（方便本地测试）
+// 测试时可以把这些值改成较短的时间，例如 1 * 60 * 1000 (1分钟)
+// ==========================================
+const IDLE_TIMEOUT_MS = 1 * 60 * 1000;         // 常规代谢：默认 6 小时 (测试环境 1 分钟)
+
+export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }: { sessionId: string, diaryId?: string, topic?: string, t?: string, contextDiaryId?: string }) {
+  const [input, setInput] = useState("");
+  const { user, isExtractingDiary: backgroundGenerating, setIsExtractingDiary: setBackgroundGenerating } = useAuth();
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [remainingClearCount, setRemainingClearCount] = useState<number | null>(null);
+  const router = useRouter();
+
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    status,
+    isLoading,
+    contextDiaryTitle,
+    setContextDiaryTitle,
+    activeContextDiaryId,
+    setActiveContextDiaryId,
+    messageDiaryMap,
+    setMessageDiaryMap,
+    isLongIdleTime,
+    isInitializing,
+  } = useChatSession(sessionId, backgroundGenerating, contextDiaryId);
+
+  const userMsgCount = messages.filter(m => m.role === "user" && !messageDiaryMap[m.id]).length;
+  const canGenerate = userMsgCount >= 2;
+  const hasUnprocessed = userMsgCount > 0;
+
+  // 这就是我们的新兵器：依赖注入式的 Hook！
+  const { isGenerating, errorMsg, setErrorMsg, handleGenerateDiary } = useDiaryGeneration({
+    sessionId, t, messages, setMessages, backgroundGenerating, setBackgroundGenerating,
+    setActiveContextDiaryId, setContextDiaryTitle, canGenerate, IDLE_TIMEOUT_MS
+  });
+
+  const executeClearChat = async () => {
+    try {
+      const res = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { method: "DELETE" });
+      if (!res.ok) {
+        if (res.status === 429) {
+          setErrorMsg("今日清空次数已用尽，请沉淀日记以开启新篇章");
+        } else {
+          setErrorMsg("清空对话失败，请重试");
+        }
+        return;
+      }
+      setMessages([]);
+      setMessageDiaryMap({});
+      setShowActionSheet(false);
+      localStorage.removeItem("current_context_diary_id");
+      setActiveContextDiaryId(null);
+      setContextDiaryTitle(null);
+    } catch (err) {
+      console.error("Failed to clear chat", err);
+      setErrorMsg("清空对话失败，请重试");
+    }
+  };
+
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading || input.length > 1000) return;
+    sendMessage(
+      { text: input },
+      { body: { context_diary_id: activeContextDiaryId } }
+    );
+    setInput("");
+    setErrorMsg(""); // clear error on new message
+  };
+
+  // Auto-hide error message after 3 seconds
+  useEffect(() => {
+    if (errorMsg) {
+      const timer = setTimeout(() => setErrorMsg(""), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMsg]);
+
+  const hasReachedTurnLimit = userMsgCount >= 30;
+  
+  // Anonymous limits
+  const isAnonymous = !Cookies.get("auth_token"); // Check if user is anonymous (simple check)
+  const isApproachingAnonLimit = isAnonymous && userMsgCount >= 8 && userMsgCount < 10;
+  const hasReachedAnonLimit = isAnonymous && userMsgCount >= 10;
+
+  const getEmptyStateContent = () => {
+    if (topic === "工作焦虑") {
+      return { title: "面对工作", subtitle: "不要急，慢慢说，是哪些事情让你感到焦虑？" };
+    }
+    if (topic === "关系困扰") {
+      return { title: "关于你们", subtitle: "感情中的结，我们一点点解开。今天发生了什么？" };
+    }
+    if (topic === "自我探索") {
+      return { title: "向内探索", subtitle: "在这个专属的空间里，让我们一起倾听你真实的声音。" };
+    }
+    return { title: "深呼吸", subtitle: "写下你此刻的想法，想到什么就说什么，随意一点就好。" };
+  };
+
+  const emptyState = getEmptyStateContent();
+
+  const { viewportHeight, isNavVisible, scrollContainerRef } = useChatScroll(
+    messages,
+    isInitializing,
+    status,
+    hasReachedTurnLimit,
+    isLongIdleTime
+  );
+
+  return (
+    <main 
+      style={{ height: viewportHeight }}
+      className="fixed top-0 left-0 w-full flex flex-col bg-background font-sans z-40 overflow-hidden"
+    >
+      <div className="flex-1 w-full max-w-3xl mx-auto flex flex-col min-h-0 relative">
+        {/* 极微弱的背景呼吸光晕 */}
+      <motion.div 
+        animate={{ opacity: [0.3, 0.5, 0.3], scale: [1, 1.05, 1] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-sage-light/30 rounded-full blur-3xl -z-10 pointer-events-none"
+      />
+      <motion.div 
+        animate={{ opacity: [0.2, 0.4, 0.2], scale: [1, 1.1, 1] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+        className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-sage-light/20 rounded-full blur-3xl -z-10 pointer-events-none"
+      />
+
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: isInitializing ? 0 : 1 }} 
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-full max-w-2xl bg-white/90 sm:bg-white/80 backdrop-blur-xl sm:rounded-3xl sm:shadow-sm sm:shadow-sage-primary/10 flex flex-col flex-1 min-h-0 sm:border border-white/50 sm:mb-4 relative overflow-hidden"
+      >
+        <AnimatePresence>
+          {/* 全局的进度胶囊已移至 Header.tsx */}
+        </AnimatePresence>
+        
+        <button 
+          onClick={() => router.push('/')}
+          className={`absolute top-4 sm:top-6 z-40 p-2.5 rounded-full transition-all duration-500 ${
+            isNavVisible 
+                  ? 'opacity-100 translate-x-0 left-4 sm:left-6 bg-white/50 backdrop-blur-md text-sage-dark/70 hover:text-sage-dark hover:bg-white/70 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] border border-white/60' 
+                  : 'opacity-80 -translate-x-[65%] left-0 bg-sage-primary/90 backdrop-blur-md text-white border border-sage-primary/50 hover:-translate-x-1/4 hover:opacity-100 shadow-[2px_0_10px_rgba(163,177,138,0.4)]'
+          }`}
+        >
+          <ChevronLeft size={24} strokeWidth={2.5} />
+        </button>
+
+        <div className="absolute top-4 sm:top-6 left-0 w-full h-[44px] z-50 transition-all duration-500 pointer-events-none opacity-100 translate-y-0">
+          <GlobalGeneratingIndicator />
+        </div>
+
+        {errorMsg && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50 text-red-600/80 px-4 py-2.5 text-sm text-center font-medium"
+          >
+            {errorMsg}
+          </motion.div>
+        )}
+
+        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pt-6 pb-6 space-y-6 transition-all duration-700">
+          <MessageList
+            messages={messages}
+            status={status}
+            contextDiaryTitle={contextDiaryTitle}
+            emptyState={emptyState}
+            user={user}
+            isLongIdleTime={isLongIdleTime}
+            hasUnprocessed={hasUnprocessed}
+            userMsgCount={userMsgCount}
+            canGenerate={canGenerate}
+            isGenerating={isGenerating}
+            isLoading={isLoading}
+            hasReachedAnonLimit={hasReachedAnonLimit}
+            hasReachedTurnLimit={hasReachedTurnLimit}
+            handleGenerateDiary={handleGenerateDiary}
+          />
+        </div>
+
+        <ChatInputArea 
+          input={input}
+          setInput={setInput}
+          onSubmit={handleSubmit}
+          isLoading={isLoading}
+          isGenerating={isGenerating}
+          hasReachedAnonLimit={hasReachedAnonLimit}
+          hasReachedTurnLimit={hasReachedTurnLimit}
+          isApproachingAnonLimit={isApproachingAnonLimit}
+          userMsgCount={userMsgCount}
+          setShowActionSheet={setShowActionSheet}
+        />
+      </motion.div>
+      
+      <GeneratingOverlay isGenerating={isGenerating} />
+
+      <ChatActionSheet
+        showActionSheet={showActionSheet}
+        setShowActionSheet={setShowActionSheet}
+        canGenerate={canGenerate}
+        hasUnprocessed={hasUnprocessed}
+        handleGenerateDiary={handleGenerateDiary}
+        sessionId={sessionId}
+        setRemainingClearCount={setRemainingClearCount}
+        setShowConfirm={setShowConfirm}
+        setErrorMsg={setErrorMsg}
+        messages={messages}
+      />
+      </div>
+
+      <ConfirmModal
+        isOpen={showConfirm}
+        title="重置当前对话？"
+        description={remainingClearCount !== null ? `这将会彻底清空当前尚未记录的对话。\n每天有 2 次强制清空对话的特权，您当前还剩余 ${remainingClearCount} 次。确定要使用吗？` : "这将会彻底清空当前尚未记录的对话。注意：每天仅可使用 2 次强制清空，是否继续？"}
+        confirmText="清空对话"
+        onConfirm={() => {
+          setShowConfirm(false);
+          executeClearChat();
+        }}
+        onCancel={() => setShowConfirm(false)}
+      />
+    </main>
+  );
+}

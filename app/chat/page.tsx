@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import ChatUI from "@/components/ChatUI";
+import ChatUI from "@/components/chat/ChatUI";
 
 export default async function ChatPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const sp = await searchParams;

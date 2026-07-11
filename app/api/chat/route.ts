@@ -44,19 +44,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: "Missing session_id" }, { status: 400 });
     }
 
+    // 从 Vercel AI SDK 的 useChat 原生 body 属性中提取
+    const contextDiaryId = body.context_diary_id || null;
+
     const payload = {
       session_id: sessionId,
       message: {
         role: lastMsg.role || "user",
         content: content
       },
-      context_diary_id: body.context_diary_id || null
+      context_diary_id: contextDiaryId
     };
     
     console.log("[BFF] Forwarding payload to backend:", JSON.stringify(payload));
 
-    // 获取 Auth Token
-    const authHeader = headersList.get("Authorization");
+    // 获取 Auth Token：优先从 Header 取，若无则从 Server-side Cookie 取，彻底解决前端 useChat 缓存 Header 导致“掉登录态”的问题
+    let authHeader = headersList.get("Authorization");
+    if (!authHeader) {
+      const cookieStore = await cookies();
+      const token = cookieStore.get("auth_token")?.value;
+      if (token) {
+        authHeader = `Bearer ${token}`;
+      }
+    }
 
     const backendRes = await fetch("http://127.0.0.1:8000/api/v1/chat", {
       method: "POST",

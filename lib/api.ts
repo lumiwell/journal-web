@@ -6,6 +6,15 @@ export async function fetchWithAuth(endpoint: string, options: RequestInit = {})
   
   headers.set('Content-Type', 'application/json');
   
+  try {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timeZone) {
+      headers.set('X-Timezone', timeZone);
+    }
+  } catch (e) {
+    console.error("Failed to get timezone", e);
+  }
+  
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }

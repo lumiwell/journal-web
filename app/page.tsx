@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { Plus, Briefcase, Users, Compass, Coffee, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
-import ConfirmModal from "@/components/ConfirmModal";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 type Diary = {
   id: string;

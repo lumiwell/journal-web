@@ -1,264 +1,33 @@
 "use client";
 
-import { use, useEffect, useLayoutEffect, useState, useRef } from "react";
-import { fetchWithAuth } from "@/lib/api";
+import { use, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import Cookies from "js-cookie";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, Trash2, ArrowRight } from "lucide-react";
-import ConfirmModal from "@/components/ConfirmModal";
-
-function EditableBlock({ 
-  content, 
-  onSave, 
-  label,
-  multiline = true,
-  textClassName = "text-base sm:text-lg",
-  placeholder = "点击添加..."
-}: { 
-  content: string; 
-  onSave: (val: string) => void;
-  label?: string;
-  multiline?: boolean;
-  textClassName?: string;
-  placeholder?: string;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [val, setVal] = useState(content);
-
-  useEffect(() => {
-    if (!isEditing) {
-      setVal(content);
-    }
-  }, [content, isEditing]);
-
-  const handleSave = () => {
-    setIsEditing(false);
-    if (val !== content) {
-      onSave(val);
-    }
-  };
-
-  const containerClasses = `relative group w-full transition-colors duration-300`;
-
-  return (
-    <div className={containerClasses}>
-      {label && (
-        <div className="text-[11px] font-bold tracking-widest text-sage-muted/60 uppercase mb-1.5">
-          {label}
-        </div>
-      )}
-      
-      <div className="relative w-full">
-        {/* Hidden div to drive native height matching exactly */}
-        <div className={`invisible whitespace-pre-wrap leading-relaxed ${textClassName} break-words`} aria-hidden="true">
-          {(val || placeholder) + (val?.endsWith('\n') ? ' ' : '')}
-        </div>
-        {/* Absolute textarea overlay - Always present so clicks place cursor natively */}
-        <textarea
-          className={`absolute top-0 left-0 w-full h-full bg-transparent border-none outline-none ring-0 p-0 m-0 resize-none overflow-hidden text-sage-dark leading-relaxed whitespace-pre-wrap break-words ${textClassName} placeholder:text-sage-muted/40 placeholder:italic placeholder:font-normal`}
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onFocus={() => setIsEditing(true)}
-          onBlur={handleSave}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setVal(content);
-              e.currentTarget.blur();
-            }
-            if (!multiline && e.key === 'Enter') {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-          }}
-          placeholder={placeholder}
-        />
-      </div>
-    </div>
-  );
-}
-
-function EditableTag({ 
-  initialValue, 
-  onUpdate, 
-  onRemove,
-  onSplit,
-  autoFocus = false,
-  isEmptyFallback = false
-}: { 
-  initialValue: string; 
-  onUpdate: (val: string) => void; 
-  onRemove: () => void;
-  onSplit?: (left: string, right: string) => void;
-  autoFocus?: boolean;
-  isEmptyFallback?: boolean;
-}) {
-  const [val, setVal] = useState(initialValue);
-  const inputRef = useRef<HTMLInputElement>(null);
-  
-  useEffect(() => {
-    if (autoFocus && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [autoFocus]);
-
-  useEffect(() => {
-    setVal(initialValue);
-  }, [initialValue]);
-
-  const handleBlur = () => {
-    const trimmed = val.trim();
-    if (!trimmed && !isEmptyFallback) {
-      onRemove();
-    } else if (trimmed !== initialValue) {
-      onUpdate(trimmed);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 忽略输入法正在组合输入（打中文拼音选词）时的按键事件
-    if (e.nativeEvent.isComposing) return;
-
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      e.currentTarget.blur();
-    }
-    if (e.key === 'Escape') {
-      setVal(initialValue);
-      e.currentTarget.blur();
-    }
-    if (e.key === ' ' && onSplit) {
-      e.preventDefault();
-      const cursor = inputRef.current?.selectionStart || 0;
-      const left = val.slice(0, cursor).trim();
-      const right = val.slice(cursor).trim();
-      
-      // 绝对禁止在没有实质内容的情况下裂变（防止无限生成空标签）
-      if (!left && !right) return;
-      
-      onSplit(left, right);
-    }
-  };
-
-  const displayVal = val || (isEmptyFallback ? "未觉察到明显身体感受" : " ");
-
-  return (
-    <span className={`relative inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all group ${
-      isEmptyFallback && !val 
-        ? "bg-sage-dark/[0.015] text-sage-muted/70 border-sage-dark/[0.03] cursor-text" 
-        : "bg-sage-dark/[0.03] text-sage-dark/85 border-sage-dark/5 hover:bg-sage-dark/[0.05]"
-    }`}>
-      <span className={`w-1 h-1 rounded-full shrink-0 ${isEmptyFallback && !val ? "bg-sage-muted/30" : "bg-sage-primary/50"}`} />
-      <span className="relative inline-flex items-center min-w-[10px]">
-        {/* Invisible span purely for width calculation */}
-        <span className={`invisible whitespace-pre ${isEmptyFallback && !val ? 'italic text-[13px]' : ''}`} aria-hidden="true">
-          {displayVal}
-        </span>
-        
-        {/* Visible text layer when not editing (especially for placeholders) */}
-        {isEmptyFallback && !val && (
-          <span className="absolute inset-0 flex items-center text-[13px] italic pointer-events-none whitespace-nowrap">
-            未觉察到明显身体感受
-          </span>
-        )}
-        
-        <input
-          ref={inputRef}
-          className={`absolute inset-0 w-full h-full bg-transparent border-none outline-none ring-0 p-0 m-0 text-sage-dark/85 text-[13px] ${isEmptyFallback && !val ? "opacity-0 focus:opacity-100" : ""}`}
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-        />
-      </span>
-    </span>
-  );
-}
-
-function EditableTagsBlock({ tags, onSave }: { tags: string[], onSave: (tags: string[]) => void }) {
-  const [internalTags, setInternalTags] = useState(tags);
-  const [autoFocusIdx, setAutoFocusIdx] = useState<number | null>(null);
-
-  useEffect(() => {
-    setInternalTags(prev => {
-      const validParentTags = tags.filter(t => t.trim().length > 0).join(",");
-      const validInternalTags = prev.filter(t => t.trim().length > 0).join(",");
-      if (validParentTags !== validInternalTags) {
-        return tags;
-      }
-      return prev;
-    });
-  }, [tags]);
-
-  const updateTag = (index: number, newVal: string) => {
-    const next = [...internalTags];
-    next[index] = newVal;
-    setInternalTags(next);
-    onSave(next.filter(t => t.trim().length > 0));
-  };
-
-  const removeTag = (index: number) => {
-    const next = [...internalTags];
-    next.splice(index, 1);
-    setInternalTags(next);
-    onSave(next.filter(t => t.trim().length > 0));
-  };
-
-  const handleSplit = (index: number, left: string, right: string) => {
-    const next = [...internalTags];
-    next.splice(index, 1, left, right);
-    setInternalTags(next);
-    onSave(next.filter(t => t.trim().length > 0));
-    
-    if (!left && right) {
-      setAutoFocusIdx(index);
-    } else {
-      setAutoFocusIdx(index + 1);
-    }
-  };
-
-  return (
-    <div className="flex flex-wrap gap-2 items-center">
-      {internalTags.length > 0 ? (
-        internalTags.map((tag, i) => (
-          <EditableTag 
-            key={`${tag}-${i}`} 
-            initialValue={tag} 
-            autoFocus={autoFocusIdx === i}
-            onUpdate={(val) => updateTag(i, val)} 
-            onRemove={() => removeTag(i)} 
-            onSplit={(left, right) => handleSplit(i, left, right)}
-          />
-        ))
-      ) : (
-        <EditableTag 
-          initialValue="" 
-          isEmptyFallback={true}
-          autoFocus={autoFocusIdx === 0}
-          onUpdate={(val) => {
-            const next = [val];
-            setInternalTags(next);
-            onSave(next.filter(t => t.trim().length > 0));
-          }} 
-          onRemove={() => {}} 
-          onSplit={(left, right) => handleSplit(0, left, right)}
-        />
-      )}
-    </div>
-  );
-}
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import ActionSheet from "@/components/ui/ActionSheet";
+import { useDiaryData } from "@/hooks/useDiaryData";
+import { EditableBlock } from "@/components/ui/EditableBlock";
+import { EditableTagsBlock, getTagStyles } from "@/components/diary/EditableTagsBlock";
 
 export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_id: string }> }) {
   const unwrappedParams = use(params);
   const router = useRouter();
   
-  const [diary, setDiary] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
+  const {
+    diary,
+    messages,
+    loading,
+    loadError,
+    updateDiaryField,
+    toggleActionStatus,
+    executeDelete,
+    checkExploreConflict,
+    forceClearChat
+  } = useDiaryData(unwrappedParams.diary_id);
+
   const [showRawChat, setShowRawChat] = useState(false);
   const [showFullNarrative, setShowFullNarrative] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
@@ -268,46 +37,12 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
 
   const handleContinueExplore = async () => {
     setIsCheckingExplore(true);
-    try {
-      const sessionId = Cookies.get("guest_session_id");
-      const msgRes = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { cache: 'no-store' });
-      if (msgRes.ok) {
-        const msgs = await msgRes.json();
-        // Count unprocessed user messages
-        const unprocessed = msgs.filter((m: any) => m.role === "user" && !m.diary_id).length;
-        if (unprocessed > 0) {
-          setShowExploreModal(true);
-        } else {
-          router.push(`/chat?context_diary_id=${diary.id}`);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-      // Fallback
+    const hasConflict = await checkExploreConflict();
+    setIsCheckingExplore(false);
+    if (hasConflict) {
+      setShowExploreModal(true);
+    } else {
       router.push(`/chat?context_diary_id=${diary.id}`);
-    } finally {
-      setIsCheckingExplore(false);
-    }
-  };
-
-  const handleForceExplore = async () => {
-    try {
-      const sessionId = Cookies.get("guest_session_id");
-      const res = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { method: "DELETE" });
-      if (!res.ok) {
-        if (res.status === 429) {
-          alert("今日清空次数已用尽，无法强行开启新探索。请先将当前思绪结案为日记。");
-        } else {
-          alert("清空失败，请重试");
-        }
-        setShowExploreModal(false);
-        return;
-      }
-      setShowExploreModal(false);
-      router.push(`/chat?context_diary_id=${diary.id}`);
-    } catch (e) {
-      console.error(e);
-      alert("操作失败，请重试");
     }
   };
 
@@ -316,111 +51,10 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
     setShowConfirm(true);
   };
 
-  const executeDelete = async () => {
-    try {
-      const sessionId = Cookies.get("guest_session_id");
-      const res = await fetchWithAuth(`/api/v1/diaries/${diary.id}?session_id=${sessionId}`, { method: "DELETE" });
-      if (res.ok) {
-        router.replace("/");
-      } else {
-        console.error("Delete failed", await res.text());
-      }
-    } catch (e) {
-      console.error("Failed to delete diary", e);
-    }
-  };
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 60);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  useEffect(() => {
-    const fetchDiaryAndMessages = async () => {
-      try {
-        const sessionId = Cookies.get("guest_session_id");
-        if (!sessionId) throw new Error("No session ID");
-
-        const diaryRes = await fetchWithAuth(`/api/v1/diaries/${unwrappedParams.diary_id}?session_id=${sessionId}`);
-        if (!diaryRes.ok) throw new Error("Diary not found");
-        const diaryData = await diaryRes.json();
-        
-        // Handle old schema gracefully if content is a string
-        if (typeof diaryData.content === 'string') {
-           diaryData.content = { fact: diaryData.content };
-        }
-
-        setDiary(diaryData);
-
-        const msgRes = await fetchWithAuth(`/api/v1/diaries/${unwrappedParams.diary_id}/messages?session_id=${sessionId}`);
-        if (msgRes.ok) {
-           setMessages(await msgRes.json());
-        }
-      } catch (err) {
-        console.error("Failed to load diary", err);
-        setLoadError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDiaryAndMessages();
-  }, [unwrappedParams.diary_id]);
-
-  const updateDiaryField = async (fieldPath: string, newValue: string) => {
-    if (!diary) return;
-    
-    // Deep copy
-    const updated = { ...diary, content: { ...diary.content } };
-    
-    if (fieldPath === 'title') {
-      updated.title = newValue;
-    } else if (fieldPath === 'core_emotion') {
-      updated.core_emotion = newValue;
-    } else if (fieldPath === 'action_plan.task') {
-      if (!updated.content.action_plan) updated.content.action_plan = { status: 'pending' };
-      updated.content.action_plan.task = newValue;
-    } else {
-      updated.content[fieldPath] = newValue;
-    }
-
-    setDiary(updated); // Optimistic update
-
-    try {
-      const sessionId = Cookies.get("guest_session_id");
-      await fetchWithAuth(`/api/v1/diaries/${diary.id}?session_id=${sessionId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: updated.title,
-          core_emotion: updated.core_emotion,
-          content: updated.content
-        })
-      });
-    } catch (e) {
-      console.error("Failed to update", e);
-    }
-  };
-
-  const toggleActionStatus = async () => {
-    if (!diary || !diary.content?.action_plan) return;
-    const currentStatus = diary.content.action_plan.status;
-    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
-    
-    const updated = { ...diary, content: { ...diary.content, action_plan: { ...diary.content.action_plan, status: newStatus } } };
-    setDiary(updated);
-
-    try {
-      const sessionId = Cookies.get("guest_session_id");
-      await fetchWithAuth(`/api/v1/diaries/${diary.id}/action_status?session_id=${sessionId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus })
-      });
-    } catch (e) {
-      console.error("Failed to update status", e);
+  const handleDeleteConfirm = async () => {
+    const success = await executeDelete();
+    if (success) {
+      router.replace("/");
     }
   };
 
@@ -485,16 +119,15 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
 
       {/* --- Coping Mantra Banner (Edge-to-Edge) --- */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className="w-full relative overflow-hidden z-10 flex flex-col justify-start min-h-[220px] sm:min-h-[260px] pt-14 sm:pt-16 pb-20 shrink-0">
-        {/* Distinct Banner Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#d2e0d7] via-[#f0d8d1] to-[#f4e8d3]" />
-        
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/50 rounded-full blur-[80px] -translate-y-1/3 translate-x-1/3 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-white/40 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/4 pointer-events-none" />
-        
-        {/* Gradient fade to match page background at the bottom edge */}
-        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#FAF9F6] to-transparent pointer-events-none" />
-
+        {/* Banner Background & Decorations with smooth fade out at the bottom */}
+        <div className="absolute inset-0 pointer-events-none z-0" style={{ maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)' }}>
+          {/* Distinct Banner Background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#d2e0d7] via-[#f0d8d1] to-[#f4e8d3]" />
+          
+          {/* Decorative elements */}
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/50 rounded-full blur-[80px] -translate-y-1/3 translate-x-1/3" />
+          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-white/40 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/4" />
+        </div>
 
         
         <div className="relative w-full max-w-2xl mx-auto px-6 sm:px-12 flex flex-col items-center text-center z-20">
@@ -534,15 +167,35 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
           
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium tracking-widest text-sage-muted uppercase">{dateStr}</span>
-            <span className="px-3 py-1 bg-sage-light/50 text-sage-dark text-xs rounded-full font-medium border border-sage-light">
-              {diary.core_emotion}
-            </span>
+            <div className={`px-1 py-0.5 rounded-full font-medium border flex items-center justify-center transition-colors ${getTagStyles(diary.core_emotion, 'emotion', false).wrapper}`}>
+              <EditableBlock 
+                multiline={false} 
+                content={diary.core_emotion} 
+                onSave={(val) => updateDiaryField('core_emotion', val)} 
+                textClassName="text-inherit text-xs font-medium px-2 py-0.5 min-w-[40px] text-center"
+                placeholder="核心情绪"
+              />
+            </div>
           </div>
+        </motion.div>
+
+        {/* --- Emotions Block (延伸情绪) --- */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 }}>
+          <div className="text-[11px] font-bold tracking-widest text-sage-muted/60 uppercase mb-2">延伸情绪</div>
+          <EditableTagsBlock 
+            type="emotion"
+            emptyFallbackText="未觉察到其他情绪"
+            tags={content.emotions || []} 
+            onSave={(newTags) => updateDiaryField('emotions', newTags as any)} 
+          />
         </motion.div>
 
         {/* --- SomaTags Block (身体感受) --- */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+          <div className="text-[11px] font-bold tracking-widest text-sage-muted/60 uppercase mb-2">身体感受</div>
           <EditableTagsBlock 
+            type="neutral"
+            emptyFallbackText="未觉察到明显身体感受"
             tags={content.body_sensation || []} 
             onSave={(newTags) => updateDiaryField('body_sensation', newTags as any)} 
           />
@@ -732,55 +385,34 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
       </div>
 
       {/* 底部操作半屏幕布 (Bottom Action Sheet) */}
-      <AnimatePresence>
-        {showActionSheet && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowActionSheet(false)}
-              className="fixed inset-0 z-[110] bg-sage-dark/20 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 z-[120] bg-white/95 backdrop-blur-xl rounded-t-[32px] shadow-[0_-10px_40px_rgba(0,0,0,0.08)] border-t border-sage-light/30 p-6 pb-[max(2rem,env(safe-area-inset-bottom))]"
-            >
-              <div className="w-12 h-1.5 bg-sage-light/80 rounded-full mx-auto mb-8" />
-              
-              <div className="max-w-md mx-auto space-y-4">
-                <button
-                  onClick={() => {
-                    setShowActionSheet(false);
-                    handleDeleteDiary();
-                  }}
-                  className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-500 py-4 rounded-2xl text-[15px] font-medium hover:bg-red-100 transition-all duration-300 shadow-sm border border-red-100"
-                >
-                  <Trash2 size={18} />
-                  删除这篇日记
-                </button>
+      <ActionSheet isOpen={showActionSheet} onClose={() => setShowActionSheet(false)}>
+        <div className="max-w-md mx-auto space-y-4">
+          <button
+            onClick={() => {
+              setShowActionSheet(false);
+              handleDeleteDiary();
+            }}
+            className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-500 py-4 rounded-2xl text-[15px] font-medium hover:bg-red-100 transition-all duration-300 shadow-sm border border-red-100"
+          >
+            <Trash2 size={18} />
+            删除这篇日记
+          </button>
 
-                <button
-                  onClick={() => setShowActionSheet(false)}
-                  className="w-full py-4 text-[15px] font-medium text-sage-muted hover:text-sage-dark transition-colors"
-                >
-                  取消
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+          <button
+            onClick={() => setShowActionSheet(false)}
+            className="w-full py-4 text-[15px] font-medium text-sage-muted hover:text-sage-dark transition-colors"
+          >
+            取消
+          </button>
+        </div>
+      </ActionSheet>
 
       <ConfirmModal
         isOpen={showConfirm}
-        title="告别这篇日记？"
+        onConfirm={handleDeleteConfirm}
+        title="删除日记"
         description="这将会彻底销毁这篇日记及其背后的所有原始对话记录，该操作不可恢复。"
         confirmText="彻底删除"
-        onConfirm={executeDelete}
         onCancel={() => setShowConfirm(false)}
       />
 
@@ -801,10 +433,10 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[140] w-[90%] max-w-[360px] bg-white/95 backdrop-blur-xl rounded-[28px] p-8 shadow-[0_10px_40px_rgba(0,0,0,0.1)] border border-sage-light/30"
             >
-              <h3 className="text-xl font-medium text-sage-dark text-center mb-3">有一段思绪正在流淌...</h3>
+              <h3 className="text-[17px] font-medium text-sage-dark text-center mb-3">当前有进行中的对话</h3>
               <p className="text-sage-dark/80 text-[14px] leading-relaxed text-center mb-8">
-                你的心流还未走到终点，当前还有一段未被记录的对话。<br/><br/>
-                如果此时开启新探索，这些尚未沉淀的感悟将会随风飘散。
+                您当前已经有一段未完成的对话。<br/><br/>
+                请先前往对话页继续聊天，或将其生成为日记后，再来开启新的探索。
               </p>
               
               <div className="flex flex-col gap-3">
@@ -812,13 +444,13 @@ export default function DiarySnapshotPage({ params }: { params: Promise<{ diary_
                   onClick={() => router.push("/chat")}
                   className="w-full bg-sage-primary text-white py-3.5 rounded-2xl text-[15px] font-medium hover:bg-sage-dark transition-all duration-300 shadow-sm"
                 >
-                  去将它沉淀为日记
+                  前往对话页
                 </button>
                 <button
-                  onClick={handleForceExplore}
-                  className="w-full bg-red-50/50 text-red-500 py-3.5 rounded-2xl text-[14px] font-medium hover:bg-red-50 transition-all duration-300 border border-red-100"
+                  onClick={() => setShowExploreModal(false)}
+                  className="w-full bg-transparent text-sage-muted py-3.5 rounded-2xl text-[14px] font-medium hover:bg-sage-dark/5 transition-all duration-300"
                 >
-                  随风飘散，开启新探索
+                  取消
                 </button>
               </div>
             </motion.div>
