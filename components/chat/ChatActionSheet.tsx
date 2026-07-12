@@ -1,6 +1,7 @@
-import { Sparkles, Trash2 } from 'lucide-react';
+import { Droplet, Trash2 } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/api';
 import ActionSheet from '@/components/ui/ActionSheet';
+import { useAuth } from '@/context/AuthContext';
 
 interface ChatActionSheetProps {
   showActionSheet: boolean;
@@ -27,6 +28,9 @@ export default function ChatActionSheet({
   setErrorMsg,
   messages
 }: ChatActionSheetProps) {
+  const { user } = useAuth();
+  const hasQuota = user ? user.quota > 0 : true; // Guest users might have limits handled by backend
+
   return (
     <ActionSheet 
       isOpen={showActionSheet} 
@@ -35,17 +39,26 @@ export default function ChatActionSheet({
     >
       <div className="max-w-md mx-auto flex gap-6 px-2">
               <button
+                type="button"
                 onClick={() => {
-                  setShowActionSheet(false);
-                  handleGenerateDiary(false);
+                  if (user !== null && !hasQuota) {
+                    setErrorMsg("墨水已耗尽");
+                    setShowActionSheet(false);
+                  } else {
+                    handleGenerateDiary(false);
+                    setShowActionSheet(false);
+                  }
                 }}
-                disabled={!canGenerate}
-                className="flex flex-col items-center gap-2.5 group disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex flex-col items-center gap-2 group w-[60px]"
               >
-                <div className="w-[60px] h-[60px] rounded-2xl bg-sage-50 text-sage-primary flex items-center justify-center shadow-sm group-hover:bg-sage-100 transition-colors">
-                  <Sparkles size={24} />
+                <div className="w-[60px] h-[60px] rounded-2xl flex items-center justify-center shadow-sm transition-colors bg-sage-50 text-sage-primary group-hover:bg-sage-100">
+                  <Droplet size={24} />
                 </div>
-                <span className="text-[13px] font-medium text-sage-dark">封存日记</span>
+                <div className="flex flex-col items-center">
+                  <span className="text-[13px] font-medium text-sage-dark flex items-center gap-1">
+                    生成日记
+                  </span>
+                </div>
               </button>
               
               <button
@@ -59,7 +72,7 @@ export default function ChatActionSheet({
                         setShowActionSheet(false);
                         setShowConfirm(true);
                       } else {
-                        setErrorMsg("今日清空次数已用尽，请沉淀日记以开启新篇章");
+                        setErrorMsg("今日清空特权已使用，你可以生成日记之后开启新对话");
                         setShowActionSheet(false);
                       }
                     }
@@ -76,7 +89,7 @@ export default function ChatActionSheet({
                 <div className={`w-[60px] h-[60px] rounded-2xl flex items-center justify-center shadow-sm transition-colors ${!hasUnprocessed ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500 group-hover:bg-red-100'}`}>
                   <Trash2 size={24} />
                 </div>
-                <span className={`text-[13px] font-medium ${!hasUnprocessed ? 'text-gray-400' : 'text-sage-dark'}`}>重置对话</span>
+                <span className={`text-[13px] font-medium ${!hasUnprocessed ? 'text-gray-400' : 'text-sage-dark'}`}>清空对话</span>
               </button>
             </div>
             

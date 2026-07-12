@@ -14,6 +14,7 @@ interface ChatInputAreaProps {
   isApproachingAnonLimit: boolean;
   userMsgCount: number;
   setShowActionSheet: (show: boolean) => void;
+  isDisabledLogical: boolean;
 }
 
 export default function ChatInputArea({
@@ -26,7 +27,8 @@ export default function ChatInputArea({
   hasReachedTurnLimit,
   isApproachingAnonLimit,
   userMsgCount,
-  setShowActionSheet
+  setShowActionSheet,
+  isDisabledLogical
 }: ChatInputAreaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
@@ -84,7 +86,7 @@ export default function ChatInputArea({
           </div>
           <textarea
             ref={textareaRef}
-            className={`w-full bg-transparent px-2 py-1.5 text-[15px] focus:outline-none placeholder-sage-muted text-sage-dark resize-none slim-scrollbar block leading-relaxed max-h-[120px] relative z-10 ${hasReachedAnonLimit || hasReachedTurnLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`w-full bg-transparent px-2 py-1.5 text-[15px] focus:outline-none placeholder-sage-muted text-sage-dark resize-none slim-scrollbar block leading-relaxed max-h-[120px] relative z-10 ${isDisabledLogical ? 'opacity-50 cursor-not-allowed' : ''}`}
             style={{ overflowY: 'auto' }}
             placeholder={hasReachedAnonLimit ? "体验已完成，点击上方气泡免费开始..." : hasReachedTurnLimit ? "对话已满载，请结晶为日记..." : "此刻你在想些什么？"}
             value={input}
@@ -106,7 +108,7 @@ export default function ChatInputArea({
               }
             }}
             onKeyDown={handleKeyDown}
-            disabled={hasReachedAnonLimit || hasReachedTurnLimit}
+            disabled={isDisabledLogical}
           />
         </div>
         

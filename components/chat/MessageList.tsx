@@ -128,7 +128,9 @@ export default function MessageList({
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full flex justify-center my-6">
           <div className="bg-sage-light/20 text-sage-dark/70 text-[13px] px-6 py-3 rounded-2xl max-w-[85%] text-center leading-relaxed">
             距离上一次倾诉已经过去很久了。<br />
-            你可以点击 <button onClick={() => handleGenerateDiary(true)} className="text-sage-primary font-medium hover:underline inline">生成日记</button> 开启新篇章，也可继续当前话题。
+            你可以点击 <button onClick={() => handleGenerateDiary(true)} disabled={isGenerating || isLoading} className="text-sage-primary font-medium hover:underline inline-flex items-center gap-0.5 disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed align-bottom mx-0.5">
+              生成日记
+            </button> 开启新篇章，也可继续当前话题。
           </div>
         </motion.div>
       )}
@@ -137,7 +139,9 @@ export default function MessageList({
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full flex justify-center my-6">
           <div className="text-sage-dark/80 text-[14px] max-w-[85%] text-center leading-relaxed">
             你已经走得很深了，现在是时候收获了。<br />
-            你可以点击 <button onClick={() => handleGenerateDiary(false)} disabled={isGenerating || isLoading} className="text-sage-primary font-medium hover:underline inline">生成日记</button>。<br/>
+            你可以点击 <button onClick={() => handleGenerateDiary(false)} disabled={isGenerating || isLoading} className="text-sage-primary font-medium hover:underline inline-flex items-center gap-0.5 disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed align-bottom mx-0.5">
+              生成日记
+            </button>。<br/>
             <span className="text-sage-dark/80 text-[13px] mt-1.5 inline-block">结晶为日记之后，你仍然可以基于日记继续对话与探索。</span>
           </div>
         </motion.div>

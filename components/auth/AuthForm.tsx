@@ -72,7 +72,7 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
         throw new Error(errorMessage || "验证码无效或已过期");
       }
 
-      const { access_token, session_id } = await response.json();
+      const { access_token, session_id, is_new_user } = await response.json();
       Cookies.set("auth_token", access_token, { expires: 7 }); // 7 days
       
       // Update the guest_session_id cookie so the frontend points to the merged main timeline
@@ -86,7 +86,8 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
       
       setTimeout(() => {
         const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/";
-        router.push(returnTo);
+        const suffix = is_new_user ? (returnTo.includes("?") ? "&new_user=true" : "?new_user=true") : "";
+        router.push(returnTo + suffix);
       }, 1500);
       
     } catch (err: any) {

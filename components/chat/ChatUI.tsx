@@ -57,6 +57,14 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
     setActiveContextDiaryId, setContextDiaryTitle, canGenerate, IDLE_TIMEOUT_MS
   });
 
+  const handleGenerateDiaryWithQuotaCheck = (isFromCurtain: boolean) => {
+    if (user !== null && user.quota < 1) {
+      setErrorMsg("墨水已耗尽");
+      return;
+    }
+    handleGenerateDiary(isFromCurtain);
+  };
+
   const executeClearChat = async () => {
     try {
       const res = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { method: "DELETE" });
@@ -99,12 +107,15 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
     }
   }, [errorMsg]);
 
-  const hasReachedTurnLimit = userMsgCount >= 30;
+  const hasReachedTurnLimit = userMsgCount >= (user ? (user.quota > 0 ? 30 : 20) : 30);
+  const showTurnLimitUI = hasReachedTurnLimit && !isLoading;
   
   // Anonymous limits
   const isAnonymous = !Cookies.get("auth_token"); // Check if user is anonymous (simple check)
   const isApproachingAnonLimit = isAnonymous && userMsgCount >= 8 && userMsgCount < 10;
+  const showApproachingAnonLimitUI = isApproachingAnonLimit && !isLoading;
   const hasReachedAnonLimit = isAnonymous && userMsgCount >= 10;
+  const showReachedAnonLimitUI = hasReachedAnonLimit && !isLoading;
 
   const getEmptyStateContent = () => {
     if (topic === "工作焦虑") {
@@ -195,9 +206,9 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
             canGenerate={canGenerate}
             isGenerating={isGenerating}
             isLoading={isLoading}
-            hasReachedAnonLimit={hasReachedAnonLimit}
-            hasReachedTurnLimit={hasReachedTurnLimit}
-            handleGenerateDiary={handleGenerateDiary}
+            hasReachedAnonLimit={showReachedAnonLimitUI}
+            hasReachedTurnLimit={showTurnLimitUI}
+            handleGenerateDiary={handleGenerateDiaryWithQuotaCheck}
           />
         </div>
 
@@ -207,11 +218,12 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
           onSubmit={handleSubmit}
           isLoading={isLoading}
           isGenerating={isGenerating}
-          hasReachedAnonLimit={hasReachedAnonLimit}
-          hasReachedTurnLimit={hasReachedTurnLimit}
-          isApproachingAnonLimit={isApproachingAnonLimit}
+          hasReachedAnonLimit={showReachedAnonLimitUI}
+          hasReachedTurnLimit={showTurnLimitUI}
+          isApproachingAnonLimit={showApproachingAnonLimitUI}
           userMsgCount={userMsgCount}
           setShowActionSheet={setShowActionSheet}
+          isDisabledLogical={hasReachedAnonLimit || hasReachedTurnLimit}
         />
       </motion.div>
       
@@ -222,7 +234,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
         setShowActionSheet={setShowActionSheet}
         canGenerate={canGenerate}
         hasUnprocessed={hasUnprocessed}
-        handleGenerateDiary={handleGenerateDiary}
+        handleGenerateDiary={handleGenerateDiaryWithQuotaCheck}
         sessionId={sessionId}
         setRemainingClearCount={setRemainingClearCount}
         setShowConfirm={setShowConfirm}
@@ -233,8 +245,8 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
 
       <ConfirmModal
         isOpen={showConfirm}
-        title="重置当前对话？"
-        description={remainingClearCount !== null ? `这将会彻底清空当前尚未记录的对话。\n每天有 2 次强制清空对话的特权，您当前还剩余 ${remainingClearCount} 次。确定要使用吗？` : "这将会彻底清空当前尚未记录的对话。注意：每天仅可使用 2 次强制清空，是否继续？"}
+        title="确定清空对话吗？"
+        description="每天只有 1 次清空对话的特权，确定要使用吗？"
         confirmText="清空对话"
         onConfirm={() => {
           setShowConfirm(false);

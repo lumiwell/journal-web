@@ -7,6 +7,7 @@ import { fetchWithAuth } from '@/lib/api';
 interface User {
   id: string;
   email: string;
+  quota: number;
 }
 
 interface AuthContextType {

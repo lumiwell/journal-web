@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut } from "lucide-react";
+import { LogOut, Droplets } from "lucide-react";
 import GlobalGeneratingIndicator from "./GlobalGeneratingIndicator";
 
 export default function Header() {
@@ -84,6 +84,14 @@ export default function Header() {
                         <span className="text-sm text-sage-dark font-medium truncate w-full text-center" title={user.email}>
                           {user.email}
                         </span>
+                      </div>
+                      <div className="border-t border-gray-100"></div>
+                      <div className="px-4 py-3 flex justify-between items-center bg-sage-50/50">
+                        <span className="text-[13px] text-sage-dark/80 font-medium">剩余墨水</span>
+                        <div className="flex items-center gap-1.5 text-sage-primary">
+                          <Droplets size={14} />
+                          <span className="text-[14px] font-bold">{user.quota} 滴</span>
+                        </div>
                       </div>
                       <div className="border-t border-gray-100"></div>
                       <button
