@@ -5,13 +5,17 @@ import { useAuth } from "@/context/AuthContext";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Droplets } from "lucide-react";
+import { LogOut, Droplets, Download, Trash2, AlertTriangle, Settings } from "lucide-react";
+import SettingsModal from "@/components/ui/SettingsModal";
 import GlobalGeneratingIndicator from "./GlobalGeneratingIndicator";
+
+import { fetchWithAuth } from "@/lib/api";
 
 export default function Header() {
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // 点击外部关闭下拉菜单
@@ -26,6 +30,40 @@ export default function Header() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  const handleExportData = async () => {
+    try {
+      const res = await fetchWithAuth("/api/v1/users/me/export");
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "my_lumiwell_data.json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert("导出失败，请稍后重试");
+      }
+    } catch (e) {
+      alert("导出发生错误");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      const res = await fetchWithAuth("/api/v1/users/me", { method: "DELETE" });
+      if (res.ok) {
+        logout();
+      } else {
+        alert("注销失败，请稍后重试");
+      }
+    } catch (e) {
+      alert("注销发生错误");
+    }
+  };
 
   if (pathname === "/chat" || pathname?.startsWith("/diary/")) {
     return null;
@@ -94,16 +132,29 @@ export default function Header() {
                         </div>
                       </div>
                       <div className="border-t border-gray-100"></div>
-                      <button
-                        onClick={() => {
-                          setIsDropdownOpen(false);
-                          logout();
-                        }}
-                        className="w-full text-center px-4 py-2.5 text-sm text-sage-dark/80 hover:text-sage-dark hover:bg-sage-light/20 font-medium transition-colors flex items-center justify-center gap-2"
-                      >
-                        <LogOut size={16} />
-                        退出登录
-                      </button>
+                      <div className="py-1">
+                        <button
+                          onClick={() => {
+                            setIsDropdownOpen(false);
+                            setIsSettingsOpen(true);
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-sm text-sage-dark/80 hover:text-sage-dark hover:bg-sage-light/20 font-medium transition-colors flex items-center gap-3"
+                        >
+                          <Settings size={16} />
+                          账号设置
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setIsDropdownOpen(false);
+                            logout();
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-sm text-sage-dark/80 hover:text-sage-dark hover:bg-sage-light/20 font-medium transition-colors flex items-center gap-3"
+                        >
+                          <LogOut size={16} />
+                          退出登录
+                        </button>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -127,6 +178,14 @@ export default function Header() {
           </>
         )}
       </div>
+
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onDeleteAccount={handleDeleteAccount}
+        onExportData={handleExportData}
+        user={user}
+      />
     </header>
   );
 }

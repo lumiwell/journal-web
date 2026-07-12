@@ -123,7 +123,7 @@ export function useChatSession(sessionId: string, backgroundGenerating: boolean,
     }
     
     const lastMsg = messages[messages.length - 1];
-    const lastTime = lastMsg.createdAt ? new Date(lastMsg.createdAt).getTime() : Date.now();
+    const lastTime = (lastMsg as any).createdAt ? new Date((lastMsg as any).createdAt).getTime() : Date.now();
     
     const checkIdle = () => {
       setIsLongIdleTime(Date.now() - lastTime > IDLE_TIMEOUT_MS);
@@ -148,6 +148,7 @@ export function useChatSession(sessionId: string, backgroundGenerating: boolean,
     setMessageDiaryMap,
     isLongIdleTime,
     isInitializing,
-    error
+    error,
+    reload: loadHistory
   };
 }

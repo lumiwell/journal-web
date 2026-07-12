@@ -91,6 +91,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading || input.length > 1000) return;
+    
     sendMessage(
       { text: input },
       { body: { context_diary_id: activeContextDiaryId } }

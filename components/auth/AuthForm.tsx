@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Cookies from "js-cookie";
 import { fetchWithAuth } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check } from "lucide-react";
+import Link from "next/link";
 
 interface AuthFormProps {
   title?: string;
@@ -20,6 +21,26 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    const savedEmail = sessionStorage.getItem("auth_email");
+    if (savedEmail) setEmail(savedEmail);
+    const savedAgreed = sessionStorage.getItem("auth_agreed");
+    if (savedAgreed === "true") setAgreedToPrivacy(true);
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    sessionStorage.setItem("auth_email", email);
+  }, [email, isMounted]);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    sessionStorage.setItem("auth_agreed", agreedToPrivacy.toString());
+  }, [agreedToPrivacy, isMounted]);
   
   const router = useRouter();
   const { refreshUser } = useAuth();
@@ -79,6 +100,10 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
       if (session_id) {
         Cookies.set("guest_session_id", session_id, { expires: 365, path: "/" });
       }
+      
+      // 清空本地暂存的注册表单数据
+      sessionStorage.removeItem("auth_email");
+      sessionStorage.removeItem("auth_agreed");
 
       await refreshUser();
       
@@ -88,7 +113,7 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
         const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/";
         const suffix = is_new_user ? (returnTo.includes("?") ? "&new_user=true" : "?new_user=true") : "";
         router.push(returnTo + suffix);
-      }, 1500);
+      }, 500);
       
     } catch (err: any) {
       setError(err.message);
@@ -146,10 +171,27 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
               )}
             </div>
 
+            <div className="flex items-start gap-2 px-1">
+              <input
+                type="checkbox"
+                id="privacy"
+                checked={agreedToPrivacy}
+                onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                className="mt-1 shrink-0 rounded border-gray-300 text-sage-primary focus:ring-sage-primary"
+              />
+              <label htmlFor="privacy" className="text-[12px] text-sage-muted leading-relaxed">
+                我已阅读并同意
+                <Link href="/privacy-policy" className="text-sage-primary hover:underline mx-1">
+                  《隐私政策》
+                </Link>
+                ，并明确同意系统对我的心理状态等敏感个人信息进行记录和处理。
+              </label>
+            </div>
+
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={loading || (step === 1 ? !email : code.length !== 6)}
+                disabled={loading || !agreedToPrivacy || (step === 1 ? !email : code.length !== 6)}
                 className="group relative flex w-full justify-center rounded-2xl border border-transparent bg-sage-primary py-3.5 px-4 text-[15px] font-medium tracking-wide text-white hover:bg-sage-dark focus:outline-none focus:ring-2 focus:ring-sage-primary focus:ring-offset-2 disabled:opacity-50 transition-all shadow-sm"
               >
                 {loading ? "处理中..." : step === 1 ? "获取验证码" : "认证身份"}

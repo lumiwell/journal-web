@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import Header from "@/components/layout/Header";
 import WelcomeModal from "@/components/layout/WelcomeModal";
+import CookieBanner from "@/components/ui/CookieBanner";
 import { Suspense } from "react";
 
 const geistSans = Geist({
@@ -48,6 +49,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <WelcomeModal />
           </Suspense>
+          <CookieBanner />
         </AuthProvider>
       </body>
     </html>
