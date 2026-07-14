@@ -17,6 +17,7 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import ChatActionSheet from "./ChatActionSheet";
 import { useChatScroll } from "@/hooks/useChatScroll";
 import { useChatSession } from "@/hooks/useChatSession";
+import { usePostHog } from "posthog-js/react";
 
 // ==========================================
 // 🕒 情绪断代时间配置（方便本地测试）
@@ -79,11 +80,14 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
     }
   }, [error, setErrorMsg]);
 
+  const posthog = usePostHog();
+
   const handleGenerateDiaryWithQuotaCheck = (isFromCurtain: boolean) => {
     if (user !== null && user.quota < 1) {
       setErrorMsg("墨水已耗尽");
       return;
     }
+    posthog?.capture('diary_generation_started', { isFromCurtain, messageCount: userMsgCount });
     handleGenerateDiary(isFromCurtain);
   };
 
@@ -113,6 +117,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
   // 自动发送被缓冲的“第一条消息”
   useEffect(() => {
     if (turnstileToken && pendingMessage) {
+      posthog?.capture('chat_message_sent', { isFirstMessage: true });
       sendMessage(
         { text: pendingMessage },
         { body: { 
@@ -126,7 +131,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
       setInput("");
       setErrorMsg("");
     }
-  }, [turnstileToken, pendingMessage, sendMessage, activeContextDiaryId, setErrorMsg]);
+  }, [turnstileToken, pendingMessage, sendMessage, activeContextDiaryId, setErrorMsg, posthog]);
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -143,6 +148,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
       return;
     }
     
+    posthog?.capture('chat_message_sent', { isFirstMessage: userMsgCount === 0 });
     sendMessage(
       { text: input },
       { body: { 

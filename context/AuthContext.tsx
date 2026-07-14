@@ -41,6 +41,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (res.ok) {
           const data = await res.json();
           setUser(data);
+          
+          // PostHog identification
+          import('posthog-js').then((posthogModule) => {
+            const posthog = posthogModule.default;
+            if (posthog) {
+              const guestId = Cookies.get('guest_session_id');
+              if (guestId) {
+                posthog.alias(data.id, guestId);
+              }
+              posthog.identify(data.id, {
+                email: data.email,
+                quota: data.quota
+              });
+            }
+          });
         } else {
           Cookies.remove('auth_token');
           setUser(null);
@@ -59,9 +74,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     fetchUser();
   }, []);
 
-  const logout = () => {
+  // Sync our internal backend IDs to PostHog as Super Properties
+  useEffect(() => {
+    import('posthog-js').then((posthogModule) => {
+      const posthog = posthogModule.default;
+      if (posthog) {
+        const guestId = Cookies.get('guest_session_id');
+        const props: Record<string, string> = {};
+        if (guestId) {
+          props['sys_guest_session_id'] = guestId;
+        }
+        if (user && user.id) {
+          props['sys_user_id'] = user.id;
+        }
+        
+        if (Object.keys(props).length > 0) {
+          posthog.register(props);
+        }
+      }
+    });
+  }, [user]);
+
+  const logout = async () => {
     Cookies.remove('auth_token');
     Cookies.remove('guest_session_id');
+    try {
+      const posthogModule = await import('posthog-js');
+      if (posthogModule && posthogModule.default) {
+        posthogModule.default.reset(true); // Wipes out previous Device ID and Super Properties
+      }
+    } catch (e) {
+      console.error(e);
+    }
     window.location.href = '/'; // Hard refresh to reset state and issue new guest_session_id
   };
 

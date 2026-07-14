@@ -101,6 +101,18 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
         Cookies.set("guest_session_id", session_id, { expires: 365, path: "/" });
       }
       
+      // PostHog Tracking
+      import('posthog-js').then((posthogModule) => {
+        const posthog = posthogModule.default;
+        if (posthog) {
+          if (is_new_user) {
+            posthog.capture('signup_success');
+          } else {
+            posthog.capture('login_success');
+          }
+        }
+      });
+      
       // 清空本地暂存的注册表单数据
       sessionStorage.removeItem("auth_email");
       sessionStorage.removeItem("auth_agreed");

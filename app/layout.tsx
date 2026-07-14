@@ -23,6 +23,8 @@ export const metadata: Metadata = {
 };
 
 import type { Viewport } from 'next'
+import { PHProvider } from './providers'
+import PostHogPageView from './PostHogPageView'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -43,14 +45,17 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body className="min-h-screen flex flex-col bg-background">
-        <AuthProvider>
-          <Header />
-          {children}
-          <Suspense fallback={null}>
-            <WelcomeModal />
-          </Suspense>
-          <CookieBanner />
-        </AuthProvider>
+        <PHProvider>
+          <PostHogPageView />
+          <AuthProvider>
+            <Header />
+            {children}
+            <Suspense fallback={null}>
+              <WelcomeModal />
+            </Suspense>
+            <CookieBanner />
+          </AuthProvider>
+        </PHProvider>
       </body>
     </html>
   );
