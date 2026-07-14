@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Droplets, Download, Trash2, AlertTriangle, Settings } from "lucide-react";
+import { LogOut, Droplets, Download, Trash2, AlertTriangle, Settings, Leaf } from "lucide-react";
 import SettingsModal from "@/components/ui/SettingsModal";
 import GlobalGeneratingIndicator from "./GlobalGeneratingIndicator";
 
@@ -79,19 +79,23 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 w-full h-[54px] bg-white/80 backdrop-blur-md border-b border-sage-light/30 shadow-sm px-4 py-1.5 flex justify-between items-center z-50">
-      <GlobalGeneratingIndicator />
-      <div className="font-bold text-xl text-sage-dark flex items-center gap-6">
+    <header className="fixed top-0 left-0 w-full h-[54px] bg-white/80 backdrop-blur-md border-b border-sage-light/30 shadow-sm z-50 flex justify-center">
+      <div className="w-full max-w-5xl px-4 flex justify-between items-center h-full relative">
+        <GlobalGeneratingIndicator />
+        <div className="font-bold text-xl text-sage-dark flex items-center gap-6">
         {pathname.startsWith("/diary/") ? (
            <Link href="/" className="text-sage-muted hover:text-sage-dark transition-colors flex items-center justify-center p-2 -ml-2 rounded-full hover:bg-black/5">
              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
            </Link>
         ) : (
-           <Link href="/" onClick={handleLogoClick}>Journal</Link>
+           <Link href="/" onClick={handleLogoClick} className="flex items-center gap-1.5">
+             <Leaf size={22} className="text-sage-primary" />
+             <span>觉察</span>
+           </Link>
         )}
-        {/* 移动端隐藏今日觉察 */}
+        {/* 移动端隐藏该按钮 */}
         <Link href="/chat" className="text-sm font-medium text-sage-primary hover:text-sage-dark transition-colors hidden sm:block">
-          今日觉察
+          开始记录
         </Link>
       </div>
       <div>
@@ -177,6 +181,7 @@ export default function Header() {
             )}
           </>
         )}
+      </div>
       </div>
 
       <SettingsModal 

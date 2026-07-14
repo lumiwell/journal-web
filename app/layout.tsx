@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lumiwell",
-  description: "Lumiwell - AI Journaling Companion",
+  title: "觉察",
+  description: "觉察 - 你的认知之镜",
 };
 
 import type { Viewport } from 'next'

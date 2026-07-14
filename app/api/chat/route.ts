@@ -46,6 +46,7 @@ export async function POST(req: Request) {
 
     // 从 Vercel AI SDK 的 useChat 原生 body 属性中提取
     const contextDiaryId = body.context_diary_id || null;
+    const turnstileToken = body.turnstile_token || null;
 
     const payload = {
       session_id: sessionId,
@@ -53,10 +54,11 @@ export async function POST(req: Request) {
         role: lastMsg.role || "user",
         content: content
       },
-      context_diary_id: contextDiaryId
+      context_diary_id: contextDiaryId,
+      turnstile_token: turnstileToken
     };
     
-    console.log("[BFF] Forwarding payload to backend:", JSON.stringify(payload));
+    console.log("[BFF] Forwarding payload to backend:", JSON.stringify({ ...payload, turnstile_token: turnstileToken ? "[REDACTED]" : null }));
 
     // 获取 Auth Token：优先从 Header 取，若无则从 Server-side Cookie 取，彻底解决前端 useChat 缓存 Header 导致“掉登录态”的问题
     let authHeader = headersList.get("Authorization");
@@ -68,10 +70,14 @@ export async function POST(req: Request) {
       }
     }
 
+    // Forward client IP so the backend can apply rate limiting
+    let clientIp = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || headersList.get("cf-connecting-ip") || "";
+
     const backendRes = await fetch("http://127.0.0.1:8000/api/v1/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Forwarded-For": clientIp,
         ...(authHeader ? { "Authorization": authHeader } : {})
       },
       body: JSON.stringify(payload)

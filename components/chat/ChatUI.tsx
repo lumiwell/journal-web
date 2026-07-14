@@ -13,6 +13,7 @@ import ChatInputArea from "./ChatInputArea";
 import MessageList from "./MessageList";
 import { useDiaryGeneration } from "@/hooks/useDiaryGeneration";
 import GeneratingOverlay from "./GeneratingOverlay";
+import { Turnstile } from "@marsidev/react-turnstile";
 import ChatActionSheet from "./ChatActionSheet";
 import { useChatScroll } from "@/hooks/useChatScroll";
 import { useChatSession } from "@/hooks/useChatSession";
@@ -29,6 +30,9 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [remainingClearCount, setRemainingClearCount] = useState<number | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileError, setTurnstileError] = useState<boolean>(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const router = useRouter();
 
   const {
@@ -45,6 +49,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
     setMessageDiaryMap,
     isLongIdleTime,
     isInitializing,
+    error,
   } = useChatSession(sessionId, backgroundGenerating, contextDiaryId);
 
   const userMsgCount = messages.filter(m => m.role === "user" && !messageDiaryMap[m.id]).length;
@@ -56,6 +61,23 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
     sessionId, t, messages, setMessages, backgroundGenerating, setBackgroundGenerating,
     setActiveContextDiaryId, setContextDiaryTitle, canGenerate, IDLE_TIMEOUT_MS
   });
+
+  // 监听底层的网络报错（比如 429 限流），并将其优雅地展示在顶部的红条中
+  useEffect(() => {
+    if (error) {
+      try {
+        const errorData = JSON.parse(error.message);
+        if (errorData && errorData.detail) {
+          setErrorMsg(errorData.detail);
+        } else {
+          setErrorMsg("请求过于频繁或网络波动，请稍后重试");
+        }
+      } catch (e) {
+        // 如果后端返回的不是标准 JSON，直接显示文本
+        setErrorMsg(error.message || "网络请求失败，请重试");
+      }
+    }
+  }, [error, setErrorMsg]);
 
   const handleGenerateDiaryWithQuotaCheck = (isFromCurtain: boolean) => {
     if (user !== null && user.quota < 1) {
@@ -88,13 +110,47 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
     }
   };
 
+  // 自动发送被缓冲的“第一条消息”
+  useEffect(() => {
+    if (turnstileToken && pendingMessage) {
+      sendMessage(
+        { text: pendingMessage },
+        { body: { 
+            context_diary_id: activeContextDiaryId, 
+            turnstile_token: turnstileToken,
+            new_session: true
+          } 
+        }
+      );
+      setPendingMessage(null);
+      setInput("");
+      setErrorMsg("");
+    }
+  }, [turnstileToken, pendingMessage, sendMessage, activeContextDiaryId, setErrorMsg]);
+
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading || input.length > 1000) return;
     
+    // Turnstile check for new anonymous session
+    if (!user && userMsgCount === 0 && !turnstileToken) {
+      if (turnstileError) {
+        setErrorMsg("人机验证环境异常，请刷新页面重试");
+        return;
+      }
+      setErrorMsg("安全检测中，请稍候...");
+      setPendingMessage(input); // 缓冲这条消息
+      return;
+    }
+    
     sendMessage(
       { text: input },
-      { body: { context_diary_id: activeContextDiaryId } }
+      { body: { 
+          context_diary_id: activeContextDiaryId, 
+          turnstile_token: (!user && userMsgCount === 0) ? turnstileToken : undefined,
+          new_session: (!user && userMsgCount === 0) ? true : undefined
+        } 
+      }
     );
     setInput("");
     setErrorMsg(""); // clear error on new message
@@ -163,7 +219,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
         initial={{ opacity: 0 }} 
         animate={{ opacity: isInitializing ? 0 : 1 }} 
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-2xl bg-white/90 sm:bg-white/80 backdrop-blur-xl sm:rounded-3xl sm:shadow-sm sm:shadow-sage-primary/10 flex flex-col flex-1 min-h-0 sm:border border-white/50 sm:mb-4 relative overflow-hidden"
+        className="w-full max-w-2xl mx-auto bg-white/90 sm:bg-white/80 backdrop-blur-xl sm:rounded-3xl sm:shadow-sm sm:shadow-sage-primary/10 flex flex-col flex-1 min-h-0 sm:border border-white/50 sm:my-6 relative overflow-hidden"
       >
         <AnimatePresence>
           {/* 全局的进度胶囊已移至 Header.tsx */}
@@ -217,7 +273,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
           input={input}
           setInput={setInput}
           onSubmit={handleSubmit}
-          isLoading={isLoading}
+          isLoading={isLoading || pendingMessage !== null}
           isGenerating={isGenerating}
           hasReachedAnonLimit={showReachedAnonLimitUI}
           hasReachedTurnLimit={showTurnLimitUI}
@@ -227,6 +283,25 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
           isDisabledLogical={hasReachedAnonLimit || hasReachedTurnLimit}
         />
       </motion.div>
+      
+      {!user && userMsgCount === 0 && (
+        <Turnstile
+          siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY as string}
+          onSuccess={(token) => {
+            setTurnstileToken(token);
+            setTurnstileError(false);
+          }}
+          onError={() => {
+            setTurnstileError(true);
+            setPendingMessage(null);
+            setErrorMsg("人机验证组件加载失败，请刷新页面重试");
+          }}
+          onExpire={() => {
+            setTurnstileToken(null);
+          }}
+          options={{ size: "invisible" }}
+        />
+      )}
       
       <GeneratingOverlay isGenerating={isGenerating} />
 
