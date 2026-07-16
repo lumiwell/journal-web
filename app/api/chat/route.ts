@@ -94,6 +94,7 @@ export async function POST(req: Request) {
     safeHeaders.set("Content-Type", "text/event-stream; charset=utf-8");
     safeHeaders.set("Cache-Control", "no-cache");
     safeHeaders.set("Connection", "keep-alive");
+    safeHeaders.set("X-Accel-Buffering", "no");
 
     // 抛弃所有画蛇添足的壳子，纯原生零损耗透传
     return new Response(backendRes.body, {
