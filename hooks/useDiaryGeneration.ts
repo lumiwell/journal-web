@@ -55,9 +55,13 @@ export function useDiaryGeneration({
           let isRunning = true;
           // 最多轮询 15 次 (45秒)，防止无限死循环
           let maxAttempts = 15;
+          const bgContextId = localStorage.getItem("current_context_diary_id");
+          const bgUrl = bgContextId 
+            ? `/api/v1/diary/generate?context_diary_id=${bgContextId}` 
+            : `/api/v1/diary/generate`;
           while (isRunning && maxAttempts > 0) {
             try {
-              const res = await fetchWithAuth(`/api/v1/diary/generate`, {
+              const res = await fetchWithAuth(bgUrl, {
                 method: "POST"
               });
               
@@ -113,7 +117,11 @@ export function useDiaryGeneration({
     setErrorMsg("");
     let isSuccess = false;
     try {
-      const res = await fetchWithAuth(`/api/v1/diary/generate`, {
+      const fgContextId = localStorage.getItem("current_context_diary_id");
+      const fgUrl = fgContextId 
+        ? `/api/v1/diary/generate?context_diary_id=${fgContextId}` 
+        : `/api/v1/diary/generate`;
+      const res = await fetchWithAuth(fgUrl, {
         method: "POST"
       });
       

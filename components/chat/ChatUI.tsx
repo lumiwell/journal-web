@@ -75,7 +75,16 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
         }
       } catch (e) {
         // 如果后端返回的不是标准 JSON，直接显示文本
-        setErrorMsg(error.message || "网络请求失败，请重试");
+        // 优雅降级策略：如果报错是纯英文的底层网络错误（如 "Connection error."）或者超长日志，一律转为温和的中文提示
+        const rawMsg = error.message || "";
+        const hasChinese = /[\u4e00-\u9fa5]/.test(rawMsg);
+        
+        if (!hasChinese || rawMsg.length > 100 || rawMsg.includes("validation")) {
+          setErrorMsg("服务端网络连接异常，请稍候重试");
+        } else {
+          // 如果是后端自定义的简短中文报错，则直接展示
+          setErrorMsg(rawMsg || "网络请求失败，请重试");
+        }
       }
     }
   }, [error, setErrorMsg]);
