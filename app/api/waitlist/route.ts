@@ -23,8 +23,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         email: email,
-        source: 'Waitlist - Juecha',
-        userGroup: 'Waitlist'
+        source: 'Waitlist - Juecha'
       }),
     });
 
