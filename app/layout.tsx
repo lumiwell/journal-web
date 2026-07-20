@@ -3,8 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
 import WelcomeModal from "@/components/layout/WelcomeModal";
 import CookieBanner from "@/components/ui/CookieBanner";
+import WaitlistModal from "@/components/ui/WaitlistModal";
 import { Suspense } from "react";
 
 const geistSans = Geist({
@@ -50,10 +52,12 @@ export default function RootLayout({
           <AuthProvider>
             <Header />
             {children}
+            <Footer />
             <Suspense fallback={null}>
               <WelcomeModal />
             </Suspense>
             <CookieBanner />
+            <WaitlistModal />
           </AuthProvider>
         </PHProvider>
       </body>

@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, Droplets, Download, Trash2, AlertTriangle, Settings, Leaf } from "lucide-react";
 import SettingsModal from "@/components/ui/SettingsModal";
 import GlobalGeneratingIndicator from "./GlobalGeneratingIndicator";
+import { openWaitlistModal } from "@/components/ui/WaitlistModal";
 
 import { fetchWithAuth } from "@/lib/api";
 
 export default function Header() {
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -39,7 +41,7 @@ export default function Header() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "my_lumiwell_data.json";
+        a.download = "my_hermeticbox_data.json";
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -74,13 +76,28 @@ export default function Header() {
   const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (pathname === "/") {
       e.preventDefault();
+      // 使用 Next.js 的 router.replace 清理 hash，并通过 scroll: false 阻止它的自动滚动干扰
+      router.replace("/", { scroll: false });
+      // 恢复平滑滚动，现在由于加上了 scroll: false，它不会再被 Next.js 中途打断了
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, hash: string) => {
+    if (pathname === "/") {
+      e.preventDefault();
+      router.replace(`/${hash}`, { scroll: false });
+      const element = document.querySelector(hash);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth" });
+      }
+      setIsDropdownOpen(false); // 在移动端点击后关闭菜单
+    }
+  };
+
   return (
-    <header className="fixed top-0 left-0 w-full h-[54px] bg-white/80 backdrop-blur-md border-b border-sage-light/30 shadow-sm z-50 flex justify-center">
-      <div className="w-full max-w-5xl px-4 flex justify-between items-center h-full relative">
+    <header className="fixed top-0 left-0 w-full h-[54px] bg-white/80 backdrop-blur-md border-b border-sage-light/30 shadow-sm z-50 px-4 sm:px-6">
+      <div className="w-full max-w-5xl mx-auto flex justify-between items-center h-full relative">
         <GlobalGeneratingIndicator />
         <div className="font-bold text-xl text-sage-dark flex items-center gap-6">
         {pathname.startsWith("/diary/") ? (
@@ -94,9 +111,20 @@ export default function Header() {
            </Link>
         )}
         {/* 移动端隐藏该按钮 */}
-        <Link href="/chat" className="text-sm font-medium text-sage-primary hover:text-sage-dark transition-colors hidden sm:block">
-          开始记录
-        </Link>
+        {user ? (
+          <Link href="/journal" className="text-sm font-medium text-sage-primary hover:text-sage-dark transition-colors hidden sm:block">
+            进入日记
+          </Link>
+        ) : (
+          <div className="hidden sm:flex items-center gap-6 ml-4">
+            <Link href="/#features" onClick={(e) => handleNavClick(e, "#features")} className="text-sm font-medium text-sage-dark hover:text-sage-primary transition-colors px-2 py-1">
+              特性
+            </Link>
+            <Link href="/#pricing" onClick={(e) => handleNavClick(e, "#pricing")} className="text-sm font-medium text-sage-dark hover:text-sage-primary transition-colors px-2 py-1">
+              定价
+            </Link>
+          </div>
+        )}
       </div>
       <div>
         {!loading && (
@@ -137,6 +165,20 @@ export default function Header() {
                       </div>
                       <div className="border-t border-gray-100"></div>
                       <div className="py-1">
+                        <Link
+                          href="/#features"
+                          onClick={(e) => handleNavClick(e, "#features")}
+                          className="block px-4 py-2 text-sage-dark hover:bg-sage-50 rounded-lg transition-colors"
+                        >
+                          特性
+                        </Link>
+                        <Link
+                          href="/#pricing"
+                          onClick={(e) => handleNavClick(e, "#pricing")}
+                          className="block px-4 py-2 text-sage-dark hover:bg-sage-50 rounded-lg transition-colors"
+                        >
+                          定价
+                        </Link>
                         <button
                           onClick={() => {
                             setIsDropdownOpen(false);
@@ -165,18 +207,12 @@ export default function Header() {
               </div>
             ) : (
               <div className="flex items-center gap-4">
-                <Link
-                  href="/login"
-                  className="text-sm text-sage-dark hover:text-sage-primary font-medium transition-colors"
-                >
-                  登录
-                </Link>
-                <Link
-                  href="/register"
+                <button
+                  onClick={openWaitlistModal}
                   className="text-sm bg-sage-primary text-white px-4 py-1.5 rounded-full hover:bg-sage-dark font-medium transition-colors shadow-sm"
                 >
-                  免费开始
-                </Link>
+                  申请内测
+                </button>
               </div>
             )}
           </>

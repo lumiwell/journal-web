@@ -1,408 +1,226 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { fetchWithAuth } from "@/lib/api";
-import Cookies from "js-cookie";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/context/AuthContext";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
-import { Plus, Briefcase, Users, Compass, Coffee, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
-import ConfirmModal from "@/components/ui/ConfirmModal";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { Sparkles, BrainCircuit, HeartHandshake, ArrowRight, CheckCircle2, Leaf } from "lucide-react";
+import { openWaitlistModal } from "@/components/ui/WaitlistModal";
 
-type Diary = {
-  id: string;
-  session_id: string;
-  core_emotion: string;
-  insight: string;
-  created_at: string;
-};
-
-function DiaryCardItem({ diary, index, timeStr, diaryToDelete, handleDeleteDiary, router }: any) {
-  const controls = useAnimation();
-
-  // 若弹窗被取消（diaryToDelete 变回 null），且卡片原本处于划开状态，则将其自动恢复原位
-  useEffect(() => {
-    if (!diaryToDelete) {
-      controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 20 } });
-    }
-  }, [diaryToDelete, controls]);
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.05 }}
-      className="relative pl-5 pr-0 mb-6 last:mb-2"
-    >
-      {/* 轴上的小圆点，精准对齐卡片内部的 Header（时间/标签） */}
-      <div className="absolute -left-[5.5px] top-[29px] sm:top-[33px] w-[10px] h-[10px] rounded-full border-[2px] border-[#8CA48B]/60 bg-background z-20 transition-transform duration-300" />
-
-      {/* 底层：删除按钮 (右侧隐藏) */}
-      <div className="absolute right-0 top-0 bottom-0 w-[80px] flex items-center justify-end pr-3">
-        <button
-          type="button"
-          onPointerDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            handleDeleteDiary(e as any, diary.id);
-          }}
-          className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center transition-colors active:bg-red-100 z-0 shadow-sm"
-        >
-          <Trash2 size={20} />
-        </button>
-      </div>
-
-      {/* 表层：支持拖拽的卡片 */}
-      <motion.div
-        drag="x"
-        dragConstraints={{ left: -80, right: 0 }}
-        dragElastic={0.1}
-        animate={controls}
-        onDragEnd={(event, info) => {
-          if (info.offset.x > -40) {
-            controls.start({ x: 0 });
-          } else {
-            controls.start({ x: -80 });
-          }
-        }}
-        className="relative z-10 block bg-white p-5 sm:p-6 rounded-[20px] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] transition-shadow duration-300 border border-sage-light/10 cursor-pointer"
-        onClick={(e) => {
-          const style = window.getComputedStyle(e.currentTarget);
-          const matrix = new DOMMatrixReadOnly(style.transform);
-          if (matrix.m41 < -5) return;
-          router.push(`/diary/${diary.id}`);
-        }}
-      >
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-sage-muted text-[14px] font-medium tracking-wide">
-            {timeStr}
-          </span>
-          <span className="bg-[#F0F4F0] text-[#6F826E] text-[12px] px-3.5 py-1.5 rounded-full font-medium tracking-wider">
-            {diary.core_emotion}
-          </span>
-        </div>
-        <p className="text-sage-dark/90 text-[17px] font-medium leading-relaxed transition-colors line-clamp-4">
-          {diary.title}
-        </p>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-export default function HistoryPage() {
-  const [diaries, setDiaries] = useState<Diary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+export default function LandingPage() {
   const router = useRouter();
 
-  const loadDiaries = async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
-    try {
-      const sessionId = Cookies.get("guest_session_id");
-      if (!sessionId) return;
-      
-      const res = await fetchWithAuth(`/api/v1/diaries?session_id=${sessionId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setDiaries(data);
-      }
-    } catch (err) {
-      console.error("Failed to load diaries", err);
-    } finally {
-      if (!isSilent) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDiaries();
-
-    const handleRefresh = () => {
-      // 收到后台成功生成的消息后，静默拉取
-      loadDiaries(true).then(() => {
-        // 自动展开今天
-        const todayStr = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
-        setExpandedDays(prev => {
-          const next = new Set(prev);
-          next.add(todayStr);
-          return next;
-        });
-      });
-    };
-
-    window.addEventListener("refresh_diaries", handleRefresh);
-    return () => window.removeEventListener("refresh_diaries", handleRefresh);
-  }, []);
-
-  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
-  const [isExpandedInit, setIsExpandedInit] = useState(false);
-
-  const groupedDiariesEntries = useMemo(() => {
-    const groups = diaries.reduce((acc, diary) => {
-      // Parse UTC date correctly for local timezone rendering
-      const date = new Date(diary.created_at + "Z");
-      // Use local YYYY-MM-DD as the grouping key
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const dateKey = `${year}-${month}-${day}`;
-      
-      if (!acc[dateKey]) acc[dateKey] = [];
-      acc[dateKey].push(diary);
-      return acc;
-    }, {} as Record<string, Diary[]>);
-
-    // Sort groups descending by dateKey
-    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [diaries]);
-
-  useEffect(() => {
-    if (groupedDiariesEntries.length > 0 && !isExpandedInit) {
-      const initialExpanded = new Set<string>();
-      // 默认展开最近的 3 天
-      groupedDiariesEntries.slice(0, 3).forEach(([dateKey]) => {
-        initialExpanded.add(dateKey);
-      });
-      setExpandedDays(initialExpanded);
-      setIsExpandedInit(true);
-    }
-  }, [groupedDiariesEntries, isExpandedInit]);
-
-  const toggleDay = (dateKey: string) => {
-    setExpandedDays(prev => {
-      const next = new Set(prev);
-      if (next.has(dateKey)) next.delete(dateKey);
-      else next.add(dateKey);
-      return next;
-    });
-  };
-
-  const [diaryToDelete, setDiaryToDelete] = useState<string | null>(null);
-
-  const handleDeleteDiary = (e: React.MouseEvent, diaryId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDiaryToDelete(diaryId);
-  };
-
-  const confirmDeleteDiary = async () => {
-    if (!diaryToDelete) return;
-    try {
-      const sessionId = Cookies.get("guest_session_id");
-      const res = await fetchWithAuth(`/api/v1/diaries/${diaryToDelete}?session_id=${sessionId}`, { method: "DELETE" });
-      if (res.ok) {
-        setDiaries(prev => prev.filter(d => d.id !== diaryToDelete));
-      } else {
-        console.error("Delete failed", await res.text());
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setDiaryToDelete(null);
-    }
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 15 },
-    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
+  const handleStart = () => {
+    openWaitlistModal();
   };
 
   return (
-    <main id="home-scroll-container" className="flex-1 w-full flex flex-col items-center bg-background p-4 pt-[80px] font-sans relative overflow-x-hidden">
-      {/* 极微弱的背景光晕 */}
-      <div className="absolute top-0 left-0 w-full h-[30vh] bg-gradient-to-b from-sage-light/40 to-transparent -z-10" />
-
-      <div className={`w-full max-w-3xl ${diaries.length > 0 ? 'mb-32' : 'mb-0'}`}>
-        {!user && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-            className="bg-sage-light/30 border border-sage-light text-sage-dark px-4 py-3 rounded-2xl mb-6 text-sm text-center shadow-sm"
-          >
-            当前为匿名模式，数据仅存本地，<button onClick={() => router.push('/register')} className="font-semibold underline decoration-sage-primary/30 underline-offset-4">注册</button>以永久云端保存你的心境轨迹。
-          </motion.div>
-        )}
-
-        {!loading && diaries.length > 0 && (
-          <div className="mb-8 pl-2">
-            <motion.h1 initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="text-[28px] sm:text-[32px] font-medium text-sage-dark tracking-wide mb-2">
-              时光足迹
-            </motion.h1>
-            <motion.p initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }} className="text-sage-muted text-[13px] sm:text-[15px] tracking-widest">
-              无论好坏，都是你生命的一部分。
-            </motion.p>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-             <div className="flex gap-2 mt-4">
-                <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0 }} className="w-2.5 h-2.5 rounded-full bg-sage-primary/70"></motion.div>
-                <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }} className="w-2.5 h-2.5 rounded-full bg-sage-primary/70"></motion.div>
-                <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }} className="w-2.5 h-2.5 rounded-full bg-sage-primary/70"></motion.div>
-             </div>
-          </div>
-        ) : diaries.length === 0 ? (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center py-10"
-          >
-            <h2 className="text-2xl font-medium text-sage-dark/90 mb-10 tracking-wide">今天感觉怎么样？</h2>
-            
-            <div className="grid grid-cols-2 gap-4 max-w-md w-full px-4">
-              <button 
-                onClick={() => router.push(`/chat?topic=工作焦虑&t=${Date.now()}`)} 
-                className="flex flex-col items-center justify-center p-6 bg-amber-50/70 hover:bg-amber-100/70 text-sage-dark rounded-2xl shadow-sm hover:shadow border border-amber-200/50 transition-all group"
-              >
-                <Briefcase size={28} strokeWidth={1.5} className="mb-3 text-amber-700/70 group-hover:text-amber-700 group-hover:-translate-y-1 transition-all duration-300" />
-                <span className="text-[15px] font-medium tracking-wide">工作焦虑</span>
-              </button>
-              
-              <button 
-                onClick={() => router.push(`/chat?topic=关系困扰&t=${Date.now()}`)} 
-                className="flex flex-col items-center justify-center p-6 bg-rose-50/70 hover:bg-rose-100/70 text-sage-dark rounded-2xl shadow-sm hover:shadow border border-rose-200/50 transition-all group"
-              >
-                <Users size={28} strokeWidth={1.5} className="mb-3 text-rose-700/70 group-hover:text-rose-700 group-hover:-translate-y-1 transition-all duration-300" />
-                <span className="text-[15px] font-medium tracking-wide">关系困扰</span>
-              </button>
-              
-              <button 
-                onClick={() => router.push(`/chat?topic=自我探索&t=${Date.now()}`)} 
-                className="flex flex-col items-center justify-center p-6 bg-sky-50/70 hover:bg-sky-100/70 text-sage-dark rounded-2xl shadow-sm hover:shadow border border-sky-200/50 transition-all group"
-              >
-                <Compass size={28} strokeWidth={1.5} className="mb-3 text-sky-700/70 group-hover:text-sky-700 group-hover:-translate-y-1 transition-all duration-300" />
-                <span className="text-[15px] font-medium tracking-wide">自我探索</span>
-              </button>
-              
-              <button 
-                onClick={() => router.push(`/chat`)} 
-                className="flex flex-col items-center justify-center p-6 bg-sage-light/70 hover:bg-sage-light text-sage-dark rounded-2xl shadow-sm hover:shadow border border-sage-primary/30 transition-all group"
-              >
-                <Coffee size={28} strokeWidth={1.5} className="mb-3 text-sage-dark/70 group-hover:text-sage-dark group-hover:-translate-y-1 transition-all duration-300" />
-                <span className="text-[15px] font-medium tracking-wide">随便聊聊</span>
-              </button>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div 
-            variants={containerVariants}
-            initial="hidden"
-            animate="show"
-            className="mt-6 pb-10"
-          >
-            {groupedDiariesEntries.map(([dateKey, dayDiaries]) => {
-              const isExpanded = expandedDays.has(dateKey);
-              
-              // Parse for display
-              const dateObj = new Date(dateKey);
-              const dayStr = String(dateObj.getDate()).padStart(2, "0"); // "03"
-              // Remove the '月' text for manual layout, or keep it depending on format
-              const monthStr = dateObj.toLocaleDateString("zh-CN", { month: "short" }); // e.g. "7月"
-              let weekdayStr = dateObj.toLocaleDateString("zh-CN", { weekday: "short" }); // e.g. "周五"
-              if (weekdayStr.startsWith("星期")) weekdayStr = weekdayStr.replace("星期", "周");
-
-              return (
-              <div key={dateKey} className="relative">
-                {/* 日期头部设计还原 */}
-                <motion.div variants={itemVariants}>
-                  <button 
-                    onClick={() => toggleDay(dateKey)}
-                    className="w-full flex items-center justify-between py-6 px-2 group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-4">
-                      {/* 超大细体字体的日期 */}
-                      <span className="text-[44px] font-light text-[#6F826E] tracking-tighter leading-none group-hover:text-sage-dark transition-colors">
-                        {dayStr}
-                      </span>
-                      {/* 上下堆叠的月份与星期 */}
-                      <div className="flex flex-col items-start justify-center gap-0.5 mt-1">
-                        <span className="text-[15px] font-medium text-sage-dark/80 leading-none">{monthStr}</span>
-                        <span className="text-[13px] text-sage-muted/80 leading-none tracking-wider">{weekdayStr}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-medium text-sage-muted/70 tracking-widest">{dayDiaries.length} 篇</span>
-                      <ChevronRight size={18} className={`text-sage-muted/60 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
-                    </div>
-                  </button>
-                </motion.div>
-                
-                {/* 日记卡片时间轴 */}
-                <AnimatePresence initial={false}>
-                  {isExpanded && (
-                    <motion.div 
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
-                      {/* 局部的虚线/细线时间轴 */}
-                      <div className="relative ml-[22px] border-l-[1.5px] border-sage-light/40 pb-6 pt-2">
-                        {dayDiaries.map((diary, index) => {
-                          const diaryDate = new Date(diary.created_at + "Z");
-                          const timeStr = diaryDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-                          
-                          return (
-                            <DiaryCardItem
-                              key={diary.id}
-                              diary={diary}
-                              index={index}
-                              timeStr={timeStr}
-                              diaryToDelete={diaryToDelete}
-                              handleDeleteDiary={handleDeleteDiary}
-                              router={router}
-                            />
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                
-                {/* 底部柔和的分隔线，不贴边 */}
-                <div className="w-[calc(100%-16px)] mx-auto h-[1px] bg-sage-light/20 mt-2" />
-              </div>
-              );
-            })}
-          </motion.div>
-        )}
+    <div className="min-h-screen bg-background font-sans text-sage-dark selection:bg-sage-primary/20 relative">
+      {/* Background decorations wrapped to prevent overflow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-sage-primary/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-sage-primary/5 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      {/* FAB - 悬浮添加按钮 (居中胶囊设计) */}
-      {!loading && diaries.length > 0 && (
-        <div className="fixed bottom-10 left-0 w-full flex justify-center z-50 pointer-events-none">
-          <Link href="/chat" className="pointer-events-auto">
-            <motion.div 
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.2 }}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              className="bg-[#8CA48B] text-white px-8 py-3.5 rounded-full shadow-lg shadow-[#8CA48B]/30 flex items-center justify-center gap-2 cursor-pointer hover:bg-[#7a9179] transition-colors"
-            >
-              <Plus size={20} strokeWidth={2.5} />
-              <span className="text-[16px] font-medium tracking-widest pl-1">记录</span>
-            </motion.div>
-          </Link>
-        </div>
-      )}
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-24 px-4 sm:px-6 w-full flex flex-col items-center text-center z-10">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-sage-light/50 border border-sage-light text-sage-dark text-sm font-medium mb-8"
+        >
+          <Sparkles size={16} className="text-sage-primary" />
+          <span>全新上线 · AI 引导式对话日记</span>
+        </motion.div>
+        
+        <motion.h1 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-sage-dark mb-6"
+        >
+          <span className="text-sage-primary/90">看见自己，才能更好地成长</span>
+        </motion.h1>
 
-      <ConfirmModal
-        isOpen={!!diaryToDelete}
-        title="告别这篇日记？"
-        description="删除这篇日记将同时物理销毁它背后的所有原始对话记忆，且该操作不可恢复。"
-        confirmText="彻底删除"
-        onConfirm={confirmDeleteDiary}
-        onCancel={() => setDiaryToDelete(null)}
-      />
-    </main>
+        <motion.p 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="text-lg sm:text-xl text-sage-muted max-w-2xl mx-auto mb-10 leading-relaxed"
+        >
+          用 AI 引导式对话记录每一天，看清情绪背后的思维模式，练习更自信的表达。每天几分钟，情商在对话中悄悄养成。
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="flex flex-col sm:flex-row gap-4 items-center"
+        >
+          <button 
+            onClick={handleStart}
+            className="px-8 py-4 bg-sage-primary text-white rounded-full font-medium text-lg hover:bg-sage-dark transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2"
+          >
+            申请内测 <ArrowRight size={20} />
+          </button>
+          <button onClick={(e) => { e.preventDefault(); document.querySelector('#pricing')?.scrollIntoView({ behavior: 'smooth' }); }} className="px-8 py-4 bg-transparent text-sage-dark border border-sage-light rounded-full font-medium text-lg hover:bg-sage-light/50 transition-all">
+            了解定价
+          </button>
+        </motion.div>
+        
+        {/* Mockup Image - Premium Mac Window Style */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+          className="mt-10 sm:mt-14 w-full max-w-3xl mx-auto relative z-20"
+        >
+          {/* 强大的发光背景，让界面脱颖而出 */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[120%] bg-gradient-to-b from-sage-primary/10 to-sage-primary/20 blur-[80px] rounded-full pointer-events-none -z-10" />
+          
+          <div className="relative rounded-2xl sm:rounded-[2rem] overflow-hidden bg-white shadow-[0_30px_80px_-15px_rgba(0,0,0,0.15)] border border-sage-light/60 ring-1 ring-black/[0.03]">
+            {/* Mac Window Title Bar */}
+            <div className="h-10 sm:h-12 bg-white/95 border-b border-sage-light/30 flex items-center px-4 backdrop-blur-md relative z-10">
+              <div className="flex gap-2 absolute left-4 sm:left-6">
+                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#FF5F56] border border-[#E0443E]/30 shadow-sm" />
+                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123]/30 shadow-sm" />
+                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#27C93F] border border-[#1AAB29]/30 shadow-sm" />
+              </div>
+              
+              {/* URL Bar */}
+              <div className="flex-1 flex justify-center">
+                <div className="bg-sage-50/80 text-sage-muted text-[10px] sm:text-xs font-medium px-4 py-1.5 rounded-md flex items-center gap-2 border border-sage-light/20 shadow-inner">
+                  <Leaf size={12} className="text-sage-primary" />
+                  hermeticbox.com
+                </div>
+              </div>
+            </div>
+            
+            {/* The Image */}
+            <div className="relative bg-background">
+              <img src="/images/hero-mockup.png" alt="觉察 AI 心理对话展示" className="w-full h-auto object-cover block" />
+              
+              {/* 底部渐变遮罩，让它与下一个区域自然融合 */}
+              <div className="absolute inset-x-0 bottom-0 h-32 sm:h-48 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none" />
+            </div>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-24 px-4 sm:px-6 bg-white/50 w-full">
+        <div className="w-full max-w-5xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="text-3xl sm:text-4xl font-bold text-sage-dark mb-5 tracking-tight">看见情绪背后的力量</h2>
+            <p className="text-sage-muted text-lg font-medium">结合心理学理论框架，为你设计的三个核心功能</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 lg:gap-10">
+            {/* Feature 1 */}
+            <div className="bg-white p-8 lg:p-10 rounded-[2rem] border border-sage-light/60 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+              <div className="w-14 h-14 bg-gradient-to-br from-sage-50 to-sage-100/50 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-inner border border-sage-light/30">
+                <HeartHandshake className="text-sage-primary" size={26} strokeWidth={1.5} />
+              </div>
+              <h3 className="text-xl font-bold text-sage-dark mb-4">倾听与引导</h3>
+              <p className="text-sage-muted/90 leading-loose">不再只是单向的树洞。AI 通过对话耐心倾听，用提问一步步引导你理清思绪，看清自己真正在想什么。</p>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="bg-white p-8 lg:p-10 rounded-[2rem] border border-sage-light/60 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+              <div className="w-14 h-14 bg-gradient-to-br from-sage-50 to-sage-100/50 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-inner border border-sage-light/30">
+                <Sparkles className="text-sage-primary" size={26} strokeWidth={1.5} />
+              </div>
+              <h3 className="text-xl font-bold text-sage-dark mb-4">日记萃取</h3>
+              <p className="text-sage-muted/90 leading-loose">对话结束后，由 AI 提取你的核心情绪和关键洞察，沉淀为一篇结构化的时光日记，形成你的认知资产。</p>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="bg-white p-8 lg:p-10 rounded-[2rem] border border-sage-light/60 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+              <div className="w-14 h-14 bg-gradient-to-br from-sage-50 to-sage-100/50 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-inner border border-sage-light/30">
+                <BrainCircuit className="text-sage-primary" size={26} strokeWidth={1.5} />
+              </div>
+              <h3 className="text-xl font-bold text-sage-dark mb-4">自由书写</h3>
+              <p className="text-sage-muted/90 leading-loose">你可以对日记自由编辑。通过亲自改写，练习更准确地表达情绪。把杂乱的思绪，变成清晰的文字。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-24 px-4 sm:px-6 w-full">
+        <div className="text-center mb-16 w-full max-w-5xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl font-bold text-sage-dark mb-4">按需购买，没有订阅压力</h2>
+          <p className="text-sage-muted text-lg font-medium">「一杯咖啡的价格，换一次与内心的深度对话」</p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6 sm:gap-8 w-full max-w-5xl mx-auto items-center">
+          {/* Tier 1: 体验包 */}
+          <div className="bg-white p-8 rounded-[2rem] border border-sage-light shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative z-0">
+            <h3 className="text-xl font-bold text-sage-dark mb-2 flex items-center gap-2">🌱 体验包</h3>
+            <p className="text-sage-muted text-sm mb-6">先试试看，几乎无负担</p>
+            <div className="mb-4">
+              <span className="text-4xl font-bold text-sage-dark">$3.99</span>
+            </div>
+            <div className="text-sm text-sage-dark/90 font-medium mb-8">
+              包含 4 滴墨水 (均价 $1.00/次)
+            </div>
+            <ul className="text-sm text-sage-dark/80 space-y-3 mb-8">
+               <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
+               <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
+            </ul>
+            <button onClick={openWaitlistModal} className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors">
+              申请内测
+            </button>
+          </div>
+
+          {/* Tier 2: 成长包 (Recommended) */}
+          <div className="bg-sage-dark p-8 rounded-[2rem] shadow-2xl relative overflow-hidden flex flex-col h-full transform md:scale-105 border border-sage-primary/30 z-10">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-sage-primary/30 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col h-full">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">🌿 成长包</h3>
+                <span className="bg-sage-primary text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">最受欢迎</span>
+              </div>
+              <p className="text-white/70 text-sm mb-6">多数人的选择，适合两周的觉察练习</p>
+              <div className="mb-4 flex items-end gap-3">
+                <span className="text-4xl font-bold text-white">$9.99</span>
+                <span className="bg-white text-sage-dark px-2.5 py-1 rounded-md text-sm font-bold mb-1 shadow-sm">省 17%</span>
+              </div>
+              <div className="text-sm text-white/90 font-medium mb-8">
+                包含 12 滴墨水 (均价 $0.83/次)
+              </div>
+              <ul className="text-sm text-white/90 space-y-3 mb-8">
+                 <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
+                 <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
+              </ul>
+              <button onClick={openWaitlistModal} className="mt-auto w-full py-3 rounded-full font-bold bg-sage-primary text-white hover:bg-[#7a9179] transition-colors shadow-lg shadow-sage-primary/20">
+                申请内测
+              </button>
+            </div>
+          </div>
+
+          {/* Tier 3: 深耕包 */}
+          <div className="bg-white p-8 rounded-[2rem] border border-sage-light shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative z-0">
+            <h3 className="text-xl font-bold text-sage-dark mb-2 flex items-center gap-2">🌳 深耕包</h3>
+            <p className="text-sage-muted text-sm mb-6">单价最低，适合长期练习</p>
+            <div className="mb-4 flex items-end gap-3">
+              <span className="text-4xl font-bold text-sage-dark">$19.99</span>
+              <span className="bg-sage-primary text-white px-2.5 py-1 rounded-md text-sm font-bold mb-1 shadow-sm">省 34%</span>
+            </div>
+            <div className="text-sm text-sage-dark/90 font-medium mb-8">
+              包含 30 滴墨水 (均价 $0.66/次)
+            </div>
+            <ul className="text-sm text-sage-dark/80 space-y-3 mb-8">
+               <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
+               <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
+            </ul>
+            <button onClick={openWaitlistModal} className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors">
+              申请内测
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
   );
 }

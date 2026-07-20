@@ -10,6 +10,16 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // 暂时屏蔽未开放的应用页面（等待候补名单阶段），强制重定向回首页
+  async redirects() {
+    return [
+      { source: '/chat', destination: '/', permanent: false },
+      { source: '/diary/:path*', destination: '/', permanent: false },
+      { source: '/journal', destination: '/', permanent: false },
+      { source: '/login', destination: '/', permanent: false },
+      { source: '/register', destination: '/', permanent: false },
+    ];
+  },
   // 允许本地局域网 IP 访问 Dev Server 以进行跨域热更新
   allowedDevOrigins: ['10.177.251.241', '127.0.0.1'],
   // 禁用左下角/右下角的黑色 N 图标（开发编译指示器）
