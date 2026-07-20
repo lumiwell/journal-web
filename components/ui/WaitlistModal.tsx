@@ -98,9 +98,9 @@ export default function WaitlistModal() {
                 <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-4">
                   <CheckCircle2 className="text-green-500" size={32} />
                 </div>
-                <h3 className="text-2xl font-bold text-sage-dark mb-2">申请已提交！</h3>
+                <h3 className="text-2xl font-bold text-sage-dark mb-2">已收到您的邮箱！</h3>
                 <p className="text-sage-muted">
-                  感谢您的关注。当内测名额开放时，我们会第一时间通过邮件通知您。
+                  感谢您的支持。内测开启时，我们会第一时间给您发送邀请邮件，请留意查收。
                 </p>
                 <button
                   onClick={handleClose}
