@@ -20,10 +20,10 @@ export default function Footer() {
         <div className="flex flex-col items-center md:items-start gap-2">
           <Link href="/" className="flex items-center gap-1.5 text-sage-dark font-medium opacity-80 hover:opacity-100 transition-opacity">
             <Leaf size={18} className="text-sage-primary" />
-            <span>觉察 Hermeticbox</span>
+            <span>觉察</span>
           </Link>
           <p className="text-sm text-sage-muted">
-            &copy; {new Date().getFullYear()} Hermeticbox. 保留所有权利。
+            &copy; {new Date().getFullYear()} 觉察. 保留所有权利。
           </p>
           <p className="text-xs text-sage-muted/70">
             联系我们: <a href="mailto:support@hermeticbox.com" className="hover:text-sage-dark transition-colors">support@hermeticbox.com</a>

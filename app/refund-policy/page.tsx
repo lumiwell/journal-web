@@ -41,7 +41,7 @@ export default function RefundPolicyPage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">1. 退款总则</h2>
               <p>
-                感谢您选择 Hermeticbox。我们深知购买一款工具需要信任，因此我们希望为您提供安心的购买体验。由于我们提供的是数字服务（软件即服务，SaaS），一经使用，产生的 AI 计算成本将无法收回，但我们依然为您提供了合理的退款保障。
+                感谢您选择 觉察。我们深知购买一款工具需要信任，因此我们希望为您提供安心的购买体验。由于我们提供的是数字服务（软件即服务，SaaS），一经使用，产生的 AI 计算成本将无法收回，但我们依然为您提供了合理的退款保障。
               </p>
             </section>
 
@@ -74,7 +74,7 @@ export default function RefundPolicyPage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">5. 如何申请退款</h2>
               <p>
-                请使用您注册 Hermeticbox 的邮箱，发送邮件至 <strong>support@hermeticbox.com</strong>，并在邮件主题中标明“退款申请”。请在邮件正文中提供您的购买凭证和订单号。我们将在 3-5 个工作日内处理您的请求。退款将原路返回您的支付账户。
+                请使用您注册 觉察 的邮箱，发送邮件至 <strong>support@hermeticbox.com</strong>，并在邮件主题中标明“退款申请”。请在邮件正文中提供您的购买凭证和订单号。我们将在 3-5 个工作日内处理您的请求。退款将原路返回您的支付账户。
               </p>
             </section>
           </div>
@@ -83,7 +83,7 @@ export default function RefundPolicyPage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">1. General Principles</h2>
               <p>
-                Thank you for choosing Hermeticbox. We understand that purchasing a tool requires trust, and we want to provide you with a worry-free buying experience. Since we offer a digital service (Software as a Service, SaaS), the AI computation costs incurred upon usage cannot be recovered. However, we still provide a reasonable refund policy.
+                Thank you for choosing Juecha. We understand that purchasing a tool requires trust, and we want to provide you with a worry-free buying experience. Since we offer a digital service (Software as a Service, SaaS), the AI computation costs incurred upon usage cannot be recovered. However, we still provide a reasonable refund policy.
               </p>
             </section>
 
@@ -116,7 +116,7 @@ export default function RefundPolicyPage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">5. How to Request a Refund</h2>
               <p>
-                Please use the email address associated with your Hermeticbox account to send an email to <strong>support@hermeticbox.com</strong>, with "Refund Request" in the subject line. Please include your purchase receipt and order number in the body of the email. We will process your request within 3-5 business days. The refund will be credited back to your original payment method.
+                Please use the email address associated with your Juecha account to send an email to <strong>support@hermeticbox.com</strong>, with "Refund Request" in the subject line. Please include your purchase receipt and order number in the body of the email. We will process your request within 3-5 business days. The refund will be credited back to your original payment method.
               </p>
             </section>
           </div>

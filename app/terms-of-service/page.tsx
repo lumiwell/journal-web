@@ -41,14 +41,14 @@ export default function TermsOfServicePage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">1. 接受条款</h2>
               <p>
-                欢迎使用 Hermeticbox（“本服务”）。通过访问或使用本服务，即表示您同意受这些条款和条件的约束。如果您不同意本条款的任何部分，则您不得访问本服务。
+                欢迎使用 觉察（“本服务”）。通过访问或使用本服务，即表示您同意受这些条款和条件的约束。如果您不同意本条款的任何部分，则您不得访问本服务。
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold mb-3">2. 我们的服务性质</h2>
               <p>
-                Hermeticbox 提供基于人工智能的情绪引导和日记辅助功能。<strong className="font-semibold text-sage-dark">请注意：我们不提供专业的医疗建议、心理诊断或危机干预。</strong> 本服务不能替代专业的医疗或心理治疗。
+                觉察 提供基于人工智能的情绪引导和日记辅助功能。<strong className="font-semibold text-sage-dark">请注意：我们不提供专业的医疗建议、心理诊断或危机干预。</strong> 本服务不能替代专业的医疗或心理治疗。
               </p>
             </section>
 
@@ -62,14 +62,14 @@ export default function TermsOfServicePage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">4. 支付与按需购买</h2>
               <p>
-                Hermeticbox 采取“按需购买”（Pay-as-you-go）的模式，不设置强制订阅，也没有自动续费的压力。所有的支付处理由安全的第三方 Merchant of Record (MoR) 平台完成。您可以根据自己的觉察需求，随时补充墨水。
+                觉察 采取“按需购买”（Pay-as-you-go）的模式，不设置强制订阅，也没有自动续费的压力。所有的支付处理由安全的第三方 Merchant of Record (MoR) 平台完成。您可以根据自己的觉察需求，随时补充墨水。
               </p>
             </section>
             
             <section>
               <h2 className="text-xl font-semibold mb-3">5. 免责声明</h2>
               <p>
-                在适用法律允许的最大范围内，Hermeticbox 对因使用或无法使用本服务而产生的任何直接、间接、偶然、特殊、后果性或惩罚性损害不承担责任。服务按“现状”提供，不包含任何明示或暗示的担保。
+                在适用法律允许的最大范围内，觉察 对因使用或无法使用本服务而产生的任何直接、间接、偶然、特殊、后果性或惩罚性损害不承担责任。服务按“现状”提供，不包含任何明示或暗示的担保。
               </p>
             </section>
 
@@ -85,14 +85,14 @@ export default function TermsOfServicePage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">1. Acceptance of Terms</h2>
               <p>
-                Welcome to Hermeticbox ("the Service"). By accessing or using the Service, you agree to be bound by these Terms and Conditions. If you disagree with any part of the terms, then you may not access the Service.
+                Welcome to Juecha ("the Service"). By accessing or using the Service, you agree to be bound by these Terms and Conditions. If you disagree with any part of the terms, then you may not access the Service.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold mb-3">2. Nature of Our Services</h2>
               <p>
-                Hermeticbox provides AI-based emotional guidance and journaling assistance. <strong className="font-semibold text-sage-dark">Please note: We do not provide professional medical advice, psychological diagnosis, or crisis intervention.</strong> This Service is not a substitute for professional medical or psychological treatment.
+                Juecha provides AI-based emotional guidance and journaling assistance. <strong className="font-semibold text-sage-dark">Please note: We do not provide professional medical advice, psychological diagnosis, or crisis intervention.</strong> This Service is not a substitute for professional medical or psychological treatment.
               </p>
             </section>
 
@@ -106,14 +106,14 @@ export default function TermsOfServicePage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">4. Payments and Pay-as-you-go</h2>
               <p>
-                Hermeticbox operates on a "Pay-as-you-go" model with no mandatory subscriptions and no auto-renewal pressure. All payment processing is handled by a secure third-party Merchant of Record (MoR) platform. You can top up your Ink balance at any time according to your journaling needs.
+                Juecha operates on a "Pay-as-you-go" model with no mandatory subscriptions and no auto-renewal pressure. All payment processing is handled by a secure third-party Merchant of Record (MoR) platform. You can top up your Ink balance at any time according to your journaling needs.
               </p>
             </section>
             
             <section>
               <h2 className="text-xl font-semibold mb-3">5. Disclaimer</h2>
               <p>
-                To the maximum extent permitted by applicable law, Hermeticbox shall not be liable for any direct, indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the Service. The Service is provided on an "AS IS" and "AS AVAILABLE" basis, without any express or implied warranties.
+                To the maximum extent permitted by applicable law, Juecha shall not be liable for any direct, indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the Service. The Service is provided on an "AS IS" and "AS AVAILABLE" basis, without any express or implied warranties.
               </p>
             </section>
 

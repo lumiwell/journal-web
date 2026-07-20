@@ -41,7 +41,7 @@ export default function PrivacyPolicyPage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">1. 核心承诺</h2>
               <p>
-                Hermeticbox 是一款情绪记录辅助工具。我们深知您在这里记录的内容包含极为私密的情感和心理状态。我们承诺：<strong className="font-semibold text-sage-dark">您的数据归您所有，我们绝不会出售您的任何个人数据。</strong>
+                觉察 是一款情绪记录辅助工具。我们深知您在这里记录的内容包含极为私密的情感和心理状态。我们承诺：<strong className="font-semibold text-sage-dark">您的数据归您所有，我们绝不会出售您的任何个人数据。</strong>
               </p>
             </section>
 
@@ -86,7 +86,7 @@ export default function PrivacyPolicyPage() {
             <section>
               <h2 className="text-xl font-semibold mb-3">1. Our Core Commitment</h2>
               <p>
-                Hermeticbox is an emotional journaling tool. We deeply understand that the content you record here contains highly private emotional and psychological states. We promise: <strong className="font-semibold text-sage-dark">Your data belongs to you, and we will never sell any of your personal data.</strong>
+                Juecha is an emotional journaling tool. We deeply understand that the content you record here contains highly private emotional and psychological states. We promise: <strong className="font-semibold text-sage-dark">Your data belongs to you, and we will never sell any of your personal data.</strong>
               </p>
             </section>
 
