@@ -13,7 +13,7 @@ export function openWaitlistModal() {
 export default function WaitlistModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   useEffect(() => {
     const handleOpen = () => setIsOpen(true);
@@ -21,23 +21,36 @@ export default function WaitlistModal() {
     return () => window.removeEventListener("openWaitlistModal", handleOpen);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
     setStatus("loading");
-    // 模拟网络请求
-    setTimeout(() => {
+    
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Submission failed");
+      }
+
       setStatus("success");
-      // 成功后清空表单
       setEmail("");
       
-      // 3秒后自动关闭（可选）
       setTimeout(() => {
         setIsOpen(false);
         setStatus("idle");
       }, 3000);
-    }, 1200);
+    } catch (error) {
+      console.error("Error submitting email:", error);
+      setStatus("error");
+    }
   };
 
   const handleClose = () => {
@@ -117,6 +130,9 @@ export default function WaitlistModal() {
                       className="w-full px-5 py-3.5 bg-sage-50/50 border border-sage-light rounded-2xl focus:outline-none focus:ring-2 focus:ring-sage-primary/30 focus:border-sage-primary transition-all text-sage-dark placeholder:text-sage-muted/50"
                     />
                   </div>
+                  {status === "error" && (
+                    <p className="text-red-500 text-sm px-1">提交失败，请重试或检查您的网络连接。</p>
+                  )}
                   <button
                     type="submit"
                     disabled={status === "loading" || !email}
