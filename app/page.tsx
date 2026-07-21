@@ -22,7 +22,7 @@ export default function LandingPage() {
       </div>
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-24 px-4 sm:px-6 w-full flex flex-col items-center text-center z-10">
+      <section className="relative pt-28 pb-20 sm:pt-36 sm:pb-24 px-4 sm:px-6 w-full flex flex-col items-center text-center z-10">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -39,7 +39,7 @@ export default function LandingPage() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-sage-dark mb-6"
         >
-          <span className="text-sage-primary/90">看见自己，才能更好地成长</span>
+          <span className="text-sage-primary/90">看见自己，更好地成长</span>
         </motion.h1>
 
         <motion.p 
