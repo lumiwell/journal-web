@@ -7,7 +7,7 @@ export const runtime = 'edge';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("[BFF] Received body:", JSON.stringify(body));
+    // Removed debug log
 
     // 解析出最新的用户消息
     let lastMsg = null;
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
       turnstile_token: turnstileToken
     };
     
-    console.log("[BFF] Forwarding payload to backend:", JSON.stringify({ ...payload, turnstile_token: turnstileToken ? "[REDACTED]" : null }));
+    // Removed debug log
 
     // 获取 Auth Token：优先从 Header 取，若无则从 Server-side Cookie 取，彻底解决前端 useChat 缓存 Header 导致“掉登录态”的问题
     let authHeader = headersList.get("Authorization");

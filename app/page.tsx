@@ -78,7 +78,7 @@ export default function LandingPage() {
             onClick={handleStart}
             className="px-8 py-4 bg-sage-primary text-white rounded-full font-medium text-lg hover:bg-[#7a9179] transition-all hover:shadow-lg shadow-sage-primary/20 flex items-center justify-center gap-2"
           >
-            免费开始
+            {user ? "开始对话" : "免费开始"}
             <ArrowRight size={20} />
           </button>
           <button onClick={(e) => { e.preventDefault(); document.querySelector('#pricing')?.scrollIntoView({ behavior: 'smooth' }); }} className="px-8 py-4 bg-transparent text-sage-dark border border-sage-light rounded-full font-medium text-lg hover:bg-sage-light/50 transition-all">

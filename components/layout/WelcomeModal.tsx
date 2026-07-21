@@ -30,6 +30,7 @@ export default function WelcomeModal() {
       setStep(step + 1);
     } else {
       setIsOpen(false);
+      router.push('/chat');
     }
   };
 
@@ -68,7 +69,7 @@ export default function WelcomeModal() {
           </p>
           <div className="bg-sage-50/80 p-3 rounded-xl border border-sage-100/50 mt-4 text-sm text-sage-dark font-medium text-center">
             每次生成日记将消耗 1 滴墨水。<br/>
-            我们已<span className="text-sage-primary font-bold">赠送您 3 滴墨水</span>，快去体验吧！
+            我们已<span className="text-sage-primary font-bold">赠送您 2 滴墨水</span>，快去体验吧！
           </div>
         </div>
       )

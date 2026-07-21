@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Droplets, Download, Trash2, AlertTriangle, Settings, Leaf } from "lucide-react";
+import { LogOut, Droplets, Download, Trash2, AlertTriangle, Settings, Leaf, Book } from "lucide-react";
 import SettingsModal from "@/components/ui/SettingsModal";
 import GlobalGeneratingIndicator from "./GlobalGeneratingIndicator";
 
@@ -166,6 +166,16 @@ export default function Header() {
                       </div>
                       <div className="border-t border-gray-100"></div>
                       <div className="py-1">
+                        {/* 移动端专用的“进入日记”入口 */}
+                        <Link
+                          href="/journal"
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="sm:hidden px-4 py-2.5 text-sage-dark hover:bg-sage-50 transition-colors flex items-center gap-3 font-medium text-sm text-sage-dark/80 hover:text-sage-dark"
+                        >
+                          <Book size={16} />
+                          日记本
+                        </Link>
+                        
                         <Link
                           href="/#features"
                           onClick={(e) => {
