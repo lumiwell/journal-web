@@ -7,8 +7,8 @@ import { Leaf } from "lucide-react";
 export default function Footer() {
   const pathname = usePathname();
 
-  // 隐藏 Footer 的页面：日记历史、对话流等应用界面，以及法律条款页面
-  const hiddenPaths = ["/chat", "/privacy-policy", "/terms-of-service", "/refund-policy"];
+  // 隐藏 Footer 的页面：日记历史、对话流等应用界面，以及法律条款页面，登录注册页面
+  const hiddenPaths = ["/chat", "/privacy-policy", "/terms-of-service", "/refund-policy", "/login", "/register"];
   if (hiddenPaths.includes(pathname || "") || pathname?.startsWith("/diary/") || pathname?.startsWith("/journal")) {
     return null;
   }

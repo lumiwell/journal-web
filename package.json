@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/react": "^4.0.4",
     "@marsidev/react-turnstile": "^1.5.3",
+    "@paddle/paddle-js": "^1.6.4",
     "@sentry/nextjs": "^10.65.0",
     "@tailwindcss/typography": "^0.5.20",
     "ai": "^7.0.3",

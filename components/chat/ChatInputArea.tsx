@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Plus } from 'lucide-react';
+import { Send, Plus, Briefcase, Users, Compass } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 
@@ -76,8 +76,37 @@ export default function ChatInputArea({
           </button>
         </motion.div>
       )}
-      
       <form onSubmit={onSubmit} className="flex gap-2 items-end max-w-3xl mx-auto w-full relative">
+        {input.trim().length === 0 && userMsgCount === 0 && (
+          <div className="absolute bottom-full left-0 w-full mb-1">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2.5 px-1 py-1 overflow-x-auto slim-scrollbar no-scrollbar items-center">
+              <button
+                type="button"
+                onClick={() => setInput("最近工作压力很大，让我觉得很焦虑，我该怎么办？")}
+                className="whitespace-nowrap flex items-center gap-1.5 bg-amber-50/80 border border-amber-200/50 text-amber-800/80 px-3.5 py-1.5 rounded-full text-[12px] font-medium shadow-sm hover:bg-amber-100/80 hover:shadow transition-all hover:-translate-y-0.5"
+              >
+                <Briefcase size={13} className="text-amber-600/80" />
+                工作焦虑
+              </button>
+              <button
+                type="button"
+                onClick={() => setInput("在感情关系中我遇到了一些困扰，感觉很内耗...")}
+                className="whitespace-nowrap flex items-center gap-1.5 bg-rose-50/80 border border-rose-200/50 text-rose-800/80 px-3.5 py-1.5 rounded-full text-[12px] font-medium shadow-sm hover:bg-rose-100/80 hover:shadow transition-all hover:-translate-y-0.5"
+              >
+                <Users size={13} className="text-rose-600/80" />
+                关系困扰
+              </button>
+              <button
+                type="button"
+                onClick={() => setInput("我感觉失去了目标和方向，想跟你聊聊")}
+                className="whitespace-nowrap flex items-center gap-1.5 bg-sky-50/80 border border-sky-200/50 text-sky-800/80 px-3.5 py-1.5 rounded-full text-[12px] font-medium shadow-sm hover:bg-sky-100/80 hover:shadow transition-all hover:-translate-y-0.5"
+              >
+                <Compass size={13} className="text-sky-600/80" />
+                自我探索
+              </button>
+            </motion.div>
+          </div>
+        )}
         <div className="flex-1 bg-white rounded-[20px] shadow-sm border border-sage-light/50 py-1 px-2 relative overflow-hidden">
           {/* Highlight backdrop layer for text exceeding 1000 characters */}
           <div className="absolute inset-0 px-2 py-1.5 pointer-events-none text-[15px] leading-relaxed whitespace-pre-wrap break-words z-0" aria-hidden="true" style={{ color: 'transparent', height: textareaRef.current?.style.height }}>

@@ -193,8 +193,14 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
               />
               <label htmlFor="privacy" className="text-[12px] text-sage-muted leading-relaxed">
                 我已阅读并同意
-                <Link href="/privacy-policy" className="text-sage-primary hover:underline mx-1">
+                <Link href="/terms-of-service" className="text-sage-primary hover:underline mx-0.5">
+                  《服务条款》
+                </Link>、
+                <Link href="/privacy-policy" className="text-sage-primary hover:underline mx-0.5">
                   《隐私政策》
+                </Link>及
+                <Link href="/refund-policy" className="text-sage-primary hover:underline mx-0.5">
+                  《退款政策》
                 </Link>
                 ，并明确同意系统对我的心理状态等敏感个人信息进行记录和处理。
               </label>

@@ -1,5 +1,4 @@
-import { Droplet, Trash2 } from 'lucide-react';
-import { fetchWithAuth } from '@/lib/api';
+import { Droplet } from 'lucide-react';
 import ActionSheet from '@/components/ui/ActionSheet';
 import { useAuth } from '@/context/AuthContext';
 
@@ -10,8 +9,6 @@ interface ChatActionSheetProps {
   hasUnprocessed: boolean;
   handleGenerateDiary: (isFromCurtain: boolean) => void;
   sessionId: string;
-  setRemainingClearCount: (count: number | null) => void;
-  setShowConfirm: (val: boolean) => void;
   setErrorMsg: (msg: string) => void;
   messages: any[];
 }
@@ -19,12 +16,7 @@ interface ChatActionSheetProps {
 export default function ChatActionSheet({
   showActionSheet,
   setShowActionSheet,
-  canGenerate,
-  hasUnprocessed,
   handleGenerateDiary,
-  sessionId,
-  setRemainingClearCount,
-  setShowConfirm,
   setErrorMsg,
   messages
 }: ChatActionSheetProps) {
@@ -37,7 +29,7 @@ export default function ChatActionSheet({
       onClose={() => setShowActionSheet(false)}
       zIndexBase={60} // Keep original z-index context for ChatUI
     >
-      <div className="max-w-md mx-auto flex gap-6 px-2">
+      <div className="max-w-md mx-auto flex justify-center px-2">
               <button
                 type="button"
                 onClick={() => {
@@ -59,37 +51,6 @@ export default function ChatActionSheet({
                     生成日记
                   </span>
                 </div>
-              </button>
-              
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages/clear_limit`);
-                    if (res.ok) {
-                      const data = await res.json();
-                      if (data.remaining > 0) {
-                        setRemainingClearCount(data.remaining);
-                        setShowActionSheet(false);
-                        setShowConfirm(true);
-                      } else {
-                        setErrorMsg("今日清空特权已使用，你可以生成日记之后开启新对话");
-                        setShowActionSheet(false);
-                      }
-                    }
-                  } catch (e) {
-                    // Fallback to just show confirm
-                    setRemainingClearCount(null);
-                    setShowActionSheet(false);
-                    setShowConfirm(true);
-                  }
-                }}
-                disabled={!hasUnprocessed}
-                className="flex flex-col items-center gap-2.5 group disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className={`w-[60px] h-[60px] rounded-2xl flex items-center justify-center shadow-sm transition-colors ${!hasUnprocessed ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500 group-hover:bg-red-100'}`}>
-                  <Trash2 size={24} />
-                </div>
-                <span className={`text-[13px] font-medium ${!hasUnprocessed ? 'text-gray-400' : 'text-sage-dark'}`}>清空对话</span>
               </button>
             </div>
             

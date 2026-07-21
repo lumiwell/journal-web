@@ -6,7 +6,6 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import WelcomeModal from "@/components/layout/WelcomeModal";
 import CookieBanner from "@/components/ui/CookieBanner";
-import WaitlistModal from "@/components/ui/WaitlistModal";
 import { Suspense } from "react";
 
 const geistSans = Geist({
@@ -27,6 +26,7 @@ export const metadata: Metadata = {
 import type { Viewport } from 'next'
 import { PHProvider } from './providers'
 import PostHogPageView from './PostHogPageView'
+import { PaddleProvider } from './paddle-provider'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -47,7 +47,8 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body className="min-h-screen flex flex-col bg-background">
-        <PHProvider>
+        <PaddleProvider>
+          <PHProvider>
           <PostHogPageView />
           <AuthProvider>
             <Header />
@@ -57,9 +58,9 @@ export default function RootLayout({
               <WelcomeModal />
             </Suspense>
             <CookieBanner />
-            <WaitlistModal />
           </AuthProvider>
         </PHProvider>
+        </PaddleProvider>
       </body>
     </html>
   );

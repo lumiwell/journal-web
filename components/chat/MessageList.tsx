@@ -32,7 +32,7 @@ export default function MessageList({
   isLoading,
   hasReachedAnonLimit,
   hasReachedTurnLimit,
-  handleGenerateDiary
+  handleGenerateDiary,
 }: MessageListProps) {
   
   if (messages.length === 0) {

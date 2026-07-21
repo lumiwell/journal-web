@@ -3,12 +3,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
-import { fetchWithAuth } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import GlobalGeneratingIndicator from "@/components/layout/GlobalGeneratingIndicator";
-import ConfirmModal from "@/components/ui/ConfirmModal";
 import ChatInputArea from "./ChatInputArea";
 import MessageList from "./MessageList";
 import { useDiaryGeneration } from "@/hooks/useDiaryGeneration";
@@ -29,8 +27,6 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
   const [input, setInput] = useState("");
   const { user, isExtractingDiary: backgroundGenerating, setIsExtractingDiary: setBackgroundGenerating } = useAuth();
   const [showActionSheet, setShowActionSheet] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [remainingClearCount, setRemainingClearCount] = useState<number | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileError, setTurnstileError] = useState<boolean>(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -100,28 +96,6 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
     handleGenerateDiary(isFromCurtain);
   };
 
-  const executeClearChat = async () => {
-    try {
-      const res = await fetchWithAuth(`/api/v1/chat/${sessionId}/messages`, { method: "DELETE" });
-      if (!res.ok) {
-        if (res.status === 429) {
-          setErrorMsg("今日清空次数已用尽，请沉淀日记以开启新篇章");
-        } else {
-          setErrorMsg("清空对话失败，请重试");
-        }
-        return;
-      }
-      setMessages([]);
-      setMessageDiaryMap({});
-      setShowActionSheet(false);
-      localStorage.removeItem("current_context_diary_id");
-      setActiveContextDiaryId(null);
-      setContextDiaryTitle(null);
-    } catch (err) {
-      console.error("Failed to clear chat", err);
-      setErrorMsg("清空对话失败，请重试");
-    }
-  };
 
   // 自动发送被缓冲的“第一条消息”
   useEffect(() => {
@@ -179,7 +153,7 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
     }
   }, [errorMsg]);
 
-  const hasReachedTurnLimit = userMsgCount >= (user ? (user.quota > 0 ? 30 : 20) : 30);
+  const hasReachedTurnLimit = userMsgCount >= 30;
   const showTurnLimitUI = hasReachedTurnLimit && !isLoading;
   
   // Anonymous limits
@@ -327,24 +301,10 @@ export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }:
         hasUnprocessed={hasUnprocessed}
         handleGenerateDiary={handleGenerateDiaryWithQuotaCheck}
         sessionId={sessionId}
-        setRemainingClearCount={setRemainingClearCount}
-        setShowConfirm={setShowConfirm}
         setErrorMsg={setErrorMsg}
         messages={messages}
       />
       </div>
-
-      <ConfirmModal
-        isOpen={showConfirm}
-        title="确定清空对话吗？"
-        description="每天只有 1 次清空对话的特权，确定要使用吗？"
-        confirmText="清空对话"
-        onConfirm={() => {
-          setShowConfirm(false);
-          executeClearChat();
-        }}
-        onCancel={() => setShowConfirm(false)}
-      />
     </main>
   );
 }

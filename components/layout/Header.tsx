@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, Droplets, Download, Trash2, AlertTriangle, Settings, Leaf } from "lucide-react";
 import SettingsModal from "@/components/ui/SettingsModal";
 import GlobalGeneratingIndicator from "./GlobalGeneratingIndicator";
-import { openWaitlistModal } from "@/components/ui/WaitlistModal";
 
 import { fetchWithAuth } from "@/lib/api";
 
@@ -95,6 +94,8 @@ export default function Header() {
     }
   };
 
+  const isAuthPage = pathname === '/login' || pathname === '/register';
+
   return (
     <header className="fixed top-0 left-0 w-full h-[54px] bg-white/80 backdrop-blur-md border-b border-sage-light/30 shadow-sm z-50 px-4 sm:px-6">
       <div className="w-full max-w-5xl mx-auto flex justify-between items-center h-full relative">
@@ -115,7 +116,7 @@ export default function Header() {
           <Link href="/journal" className="text-sm font-medium text-sage-primary hover:text-sage-dark transition-colors hidden sm:block">
             进入日记
           </Link>
-        ) : (
+        ) : !isAuthPage ? (
           <div className="hidden sm:flex items-center gap-6 ml-4">
             <Link href="/#features" onClick={(e) => handleNavClick(e, "#features")} className="text-sm font-medium text-sage-dark hover:text-sage-primary transition-colors px-2 py-1">
               特性
@@ -124,7 +125,7 @@ export default function Header() {
               定价
             </Link>
           </div>
-        )}
+        ) : null}
       </div>
       <div>
         {!loading && (
@@ -167,17 +168,23 @@ export default function Header() {
                       <div className="py-1">
                         <Link
                           href="/#features"
-                          onClick={(e) => handleNavClick(e, "#features")}
-                          className="block px-4 py-2 text-sage-dark hover:bg-sage-50 rounded-lg transition-colors"
+                          onClick={(e) => {
+                            handleNavClick(e, "#features");
+                            setIsDropdownOpen(false);
+                          }}
+                          className="block px-4 py-2 text-sage-dark hover:bg-sage-50 transition-colors flex items-center gap-3 font-medium text-sm text-sage-dark/80 hover:text-sage-dark"
                         >
                           特性
                         </Link>
                         <Link
                           href="/#pricing"
-                          onClick={(e) => handleNavClick(e, "#pricing")}
-                          className="block px-4 py-2 text-sage-dark hover:bg-sage-50 rounded-lg transition-colors"
+                          onClick={(e) => {
+                            handleNavClick(e, "#pricing");
+                            setIsDropdownOpen(false);
+                          }}
+                          className="block px-4 py-2 text-sage-dark hover:bg-sage-50 transition-colors flex items-center gap-3 font-medium text-sm text-sage-dark/80 hover:text-sage-dark"
                         >
-                          定价
+                          升级/定价
                         </Link>
                         <button
                           onClick={() => {
@@ -205,16 +212,22 @@ export default function Header() {
                   )}
                 </AnimatePresence>
               </div>
-            ) : (
+            ) : !isAuthPage ? (
               <div className="flex items-center gap-4">
-                <button
-                  onClick={openWaitlistModal}
-                  className="text-sm bg-sage-primary text-white px-4 py-1.5 rounded-full hover:bg-sage-dark font-medium transition-colors shadow-sm"
+                <Link
+                  href="/login"
+                  className="text-sm font-medium text-sage-dark hover:text-sage-primary transition-colors"
                 >
-                  申请内测
+                  登录
+                </Link>
+                <button
+                  onClick={() => router.push("/chat")}
+                  className="bg-sage-dark text-white px-5 py-2 rounded-full font-medium hover:bg-sage-dark/90 transition-colors shadow-sm text-sm"
+                >
+                  免费开始
                 </button>
               </div>
-            )}
+            ) : null}
           </>
         )}
       </div>

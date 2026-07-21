@@ -1,16 +1,33 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Sparkles, BrainCircuit, HeartHandshake, ArrowRight, CheckCircle2, Leaf } from "lucide-react";
-import { openWaitlistModal } from "@/components/ui/WaitlistModal";
+import { usePaddle } from "@/app/paddle-provider";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LandingPage() {
   const router = useRouter();
+  const paddle = usePaddle();
+  const { user } = useAuth();
+
+  const handleSubscribe = (priceId: string | undefined) => {
+    if (!priceId) return;
+    if (!user) {
+      router.push('/login?returnTo=/#pricing');
+      return;
+    }
+    if (paddle) {
+      paddle.Checkout.open({
+        items: [{ priceId, quantity: 1 }],
+        customer: { email: user?.email || '' },
+        customData: { userId: user?.id?.toString() || '' }
+      });
+    }
+  };
 
   const handleStart = () => {
-    openWaitlistModal();
+    router.push("/chat");
   };
 
   return (
@@ -59,9 +76,10 @@ export default function LandingPage() {
         >
           <button 
             onClick={handleStart}
-            className="px-8 py-4 bg-sage-primary text-white rounded-full font-medium text-lg hover:bg-sage-dark transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2"
+            className="px-8 py-4 bg-sage-primary text-white rounded-full font-medium text-lg hover:bg-[#7a9179] transition-all hover:shadow-lg shadow-sage-primary/20 flex items-center justify-center gap-2"
           >
-            申请内测 <ArrowRight size={20} />
+            免费开始
+            <ArrowRight size={20} />
           </button>
           <button onClick={(e) => { e.preventDefault(); document.querySelector('#pricing')?.scrollIntoView({ behavior: 'smooth' }); }} className="px-8 py-4 bg-transparent text-sage-dark border border-sage-light rounded-full font-medium text-lg hover:bg-sage-light/50 transition-all">
             了解定价
@@ -168,8 +186,8 @@ export default function LandingPage() {
                <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
                <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
             </ul>
-            <button onClick={openWaitlistModal} className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors">
-              申请内测
+            <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_PADDLE_PRICE_BASIC)} className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors">
+              购买墨水
             </button>
           </div>
 
@@ -193,8 +211,8 @@ export default function LandingPage() {
                  <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
                  <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
               </ul>
-              <button onClick={openWaitlistModal} className="mt-auto w-full py-3 rounded-full font-bold bg-sage-primary text-white hover:bg-[#7a9179] transition-colors shadow-lg shadow-sage-primary/20">
-                申请内测
+              <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO)} className="mt-auto w-full py-3 rounded-full font-bold bg-sage-primary text-white hover:bg-[#7a9179] transition-colors shadow-lg shadow-sage-primary/20">
+                购买墨水
               </button>
             </div>
           </div>
@@ -214,8 +232,8 @@ export default function LandingPage() {
                <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
                <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
             </ul>
-            <button onClick={openWaitlistModal} className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors">
-              申请内测
+            <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_PADDLE_PRICE_ULTIMATE)} className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors">
+              购买墨水
             </button>
           </div>
         </div>
