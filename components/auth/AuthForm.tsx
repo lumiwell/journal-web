@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Cookies from "js-cookie";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { fetchWithAuth } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -14,7 +15,7 @@ interface AuthFormProps {
   subtitle?: string;
 }
 
-export default function AuthForm({ title = "欢迎回到内心角落", subtitle = "继续我们的探索，你的珍贵回忆都在这里" }: AuthFormProps) {
+export default function AuthForm({ title = "欢迎使用觉察", subtitle = "输入邮箱，开始或继续你的日记练习" }: AuthFormProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -23,6 +24,10 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
   const [showToast, setShowToast] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileError, setTurnstileError] = useState<boolean>(false);
+  const turnstileRef = useRef<any>(null);
   
   useEffect(() => {
     const savedEmail = sessionStorage.getItem("auth_email");
@@ -49,11 +54,20 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
     e.preventDefault();
     setError("");
     setLoading(true);
+    if (!turnstileToken) {
+      if (turnstileError) {
+        setError("人机验证加载失败，请刷新页面重试");
+      } else {
+        setError("正在进行安全验证，请稍候再试...");
+      }
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await fetchWithAuth("/api/v1/auth/send-otp", {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, turnstile_token: turnstileToken }),
       });
 
       if (!response.ok) {
@@ -65,6 +79,7 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
       setStep(2);
     } catch (err: any) {
       setError(err.message);
+      turnstileRef.current?.reset();
     } finally {
       setLoading(false);
     }
@@ -202,7 +217,7 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
                 <Link href="/refund-policy" className="text-sage-primary hover:underline mx-0.5">
                   《退款政策》
                 </Link>
-                ，并明确同意系统对我的心理状态等敏感个人信息进行记录和处理。
+                ，并同意系统记录、处理我的日记与情绪相关信息。
               </label>
             </div>
 
@@ -214,6 +229,24 @@ export default function AuthForm({ title = "欢迎回到内心角落", subtitle 
               >
                 {loading ? "处理中..." : step === 1 ? "获取验证码" : "认证身份"}
               </button>
+              
+              {step === 1 && (
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY as string}
+                  onSuccess={(token) => {
+                    setTurnstileToken(token);
+                    setTurnstileError(false);
+                  }}
+                  onError={() => {
+                    setTurnstileError(true);
+                  }}
+                  onExpire={() => {
+                    setTurnstileToken(null);
+                  }}
+                  options={{ size: "invisible" }}
+                />
+              )}
             </div>
           </form>
         </div>

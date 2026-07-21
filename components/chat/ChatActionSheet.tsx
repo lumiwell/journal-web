@@ -1,4 +1,4 @@
-import { Droplet } from 'lucide-react';
+import { Droplet, Sparkles } from 'lucide-react';
 import ActionSheet from '@/components/ui/ActionSheet';
 import { useAuth } from '@/context/AuthContext';
 
@@ -16,6 +16,8 @@ interface ChatActionSheetProps {
 export default function ChatActionSheet({
   showActionSheet,
   setShowActionSheet,
+  canGenerate,
+  hasUnprocessed,
   handleGenerateDiary,
   setErrorMsg,
   messages
@@ -36,6 +38,9 @@ export default function ChatActionSheet({
                   if (user !== null && !hasQuota) {
                     setErrorMsg("墨水已耗尽");
                     setShowActionSheet(false);
+                  } else if (!canGenerate) {
+                    setErrorMsg("至少 2 轮对话才能生成日记");
+                    setShowActionSheet(false);
                   } else {
                     handleGenerateDiary(false);
                     setShowActionSheet(false);
@@ -44,7 +49,7 @@ export default function ChatActionSheet({
                 className="flex flex-col items-center gap-2 group w-[60px]"
               >
                 <div className="w-[60px] h-[60px] rounded-2xl flex items-center justify-center shadow-sm transition-colors bg-sage-50 text-sage-primary group-hover:bg-sage-100">
-                  <Droplet size={24} />
+                  <Sparkles size={24} />
                 </div>
                 <div className="flex flex-col items-center">
                   <span className="text-[13px] font-medium text-sage-dark flex items-center gap-1">

@@ -176,16 +176,7 @@ export default function Header() {
                           日记本
                         </Link>
                         
-                        <Link
-                          href="/#features"
-                          onClick={(e) => {
-                            handleNavClick(e, "#features");
-                            setIsDropdownOpen(false);
-                          }}
-                          className="block px-4 py-2 text-sage-dark hover:bg-sage-50 transition-colors flex items-center gap-3 font-medium text-sm text-sage-dark/80 hover:text-sage-dark"
-                        >
-                          特性
-                        </Link>
+
                         <Link
                           href="/#pricing"
                           onClick={(e) => {
@@ -194,7 +185,8 @@ export default function Header() {
                           }}
                           className="block px-4 py-2 text-sage-dark hover:bg-sage-50 transition-colors flex items-center gap-3 font-medium text-sm text-sage-dark/80 hover:text-sage-dark"
                         >
-                          升级/定价
+                          <Droplets size={16} />
+                          补充墨水
                         </Link>
                         <button
                           onClick={() => {

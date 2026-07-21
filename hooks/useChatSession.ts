@@ -129,7 +129,16 @@ export function useChatSession(sessionId: string, backgroundGenerating: boolean,
       setIsLongIdleTime(Date.now() - lastTime > IDLE_TIMEOUT_MS);
     };
     
-    checkIdle(); // 仅在加载和消息变动时检查，不使用定时器轮询，避免突然弹出的惊吓感
+    checkIdle(); // Check immediately
+    
+    // 动态设置一个定时器，在闲置时间到达时自动触发，而不使用死循环轮询
+    const timeUntilIdle = lastTime + IDLE_TIMEOUT_MS - Date.now();
+    if (timeUntilIdle > 0) {
+      const timerId = setTimeout(() => {
+        setIsLongIdleTime(true);
+      }, timeUntilIdle);
+      return () => clearTimeout(timerId);
+    }
   }, [messages]);
 
   const isLoading = status === "submitted" || status === "streaming";
