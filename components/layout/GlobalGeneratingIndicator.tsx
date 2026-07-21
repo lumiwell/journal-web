@@ -38,10 +38,10 @@ export default function GlobalGeneratingIndicator() {
       {isExtractingDiary && (
         <motion.div
           key="generating"
-          initial={{ opacity: 0, y: -20, scale: 0.9, x: "-50%" }}
-          animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
-          exit={{ opacity: 0, y: -20, scale: 0.9, x: "-50%" }}
-          className="absolute top-20 left-1/2 z-[100] flex items-center gap-2 bg-rose-50/80 backdrop-blur-sm px-3 py-1 rounded-full border border-rose-100/50 pointer-events-none shadow-sm"
+          initial={{ opacity: 0, y: "-50%", scale: 0.9, x: "-50%" }}
+          animate={{ opacity: 1, y: "-50%", scale: 1, x: "-50%" }}
+          exit={{ opacity: 0, y: "-50%", scale: 0.9, x: "-50%" }}
+          className="absolute top-1/2 left-1/2 z-[100] flex items-center gap-2 bg-rose-50/80 backdrop-blur-sm px-3 py-1 rounded-full border border-rose-100/50 pointer-events-none"
         >
           <div className="flex gap-[3px] items-center">
             <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0 }} className="w-1 h-1 rounded-full bg-rose-400"></motion.div>
@@ -56,10 +56,10 @@ export default function GlobalGeneratingIndicator() {
       {showSuccess && !isExtractingDiary && (
         <motion.div
           key="success"
-          initial={{ opacity: 0, y: -20, scale: 0.9, x: "-50%" }}
-          animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
-          exit={{ opacity: 0, y: -20, scale: 0.9, x: "-50%" }}
-          className="absolute top-20 left-1/2 z-[100] flex items-center gap-1.5 bg-emerald-50/80 backdrop-blur-sm px-3 py-1 rounded-full border border-emerald-100/50 pointer-events-none shadow-sm"
+          initial={{ opacity: 0, y: "-50%", scale: 0.9, x: "-50%" }}
+          animate={{ opacity: 1, y: "-50%", scale: 1, x: "-50%" }}
+          exit={{ opacity: 0, y: "-50%", scale: 0.9, x: "-50%" }}
+          className="absolute top-1/2 left-1/2 z-[100] flex items-center gap-1.5 bg-emerald-50/80 backdrop-blur-sm px-3 py-1 rounded-full border border-emerald-100/50 pointer-events-none"
         >
           <CheckCircle2 size={12} className="text-emerald-500" />
           <span className="text-[11px] text-emerald-600 font-medium tracking-wider">日记已封存</span>
