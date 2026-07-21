@@ -12,7 +12,7 @@ export default function TermsOfServicePage() {
       <div className="bg-white/80 backdrop-blur-xl p-8 sm:p-12 rounded-3xl shadow-sm border border-sage-light/40 space-y-8 relative">
         
         {/* Language Switcher */}
-        <div className="absolute top-8 right-8 flex bg-sage-light/50 rounded-full p-1 border border-sage-100">
+        <div className="flex justify-center sm:absolute sm:top-8 sm:right-8 mb-6 sm:mb-0 bg-sage-light/50 rounded-full p-1 border border-sage-100 w-fit mx-auto sm:mx-0">
           <button 
             onClick={() => setLang('zh')}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${lang === 'zh' ? 'bg-white shadow-sm text-sage-dark' : 'text-sage-muted hover:text-sage-dark'}`}
