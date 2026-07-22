@@ -73,7 +73,8 @@ export async function POST(req: Request) {
     // Forward client IP so the backend can apply rate limiting
     let clientIp = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || headersList.get("cf-connecting-ip") || "";
 
-    const backendRes = await fetch("http://127.0.0.1:8000/api/v1/chat", {
+    const apiUrl = process.env.API_URL || "http://127.0.0.1:8000";
+    const backendRes = await fetch(`${apiUrl}/api/v1/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

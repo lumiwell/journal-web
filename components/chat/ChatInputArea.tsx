@@ -78,30 +78,30 @@ export default function ChatInputArea({
       )}
       <form onSubmit={onSubmit} className="flex gap-2 items-end max-w-3xl mx-auto w-full relative">
         {input.trim().length === 0 && userMsgCount === 0 && (
-          <div className="absolute bottom-full left-0 w-full mb-1">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2.5 px-1 py-1 overflow-x-auto slim-scrollbar no-scrollbar items-center">
+          <div className="absolute bottom-full left-0 w-full mb-0.5">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-1.5 px-1 py-1 overflow-x-auto slim-scrollbar no-scrollbar items-center">
               <button
                 type="button"
                 onClick={() => setInput("最近工作压力很大，让我觉得很焦虑，我该怎么办？")}
-                className="whitespace-nowrap flex items-center gap-1.5 bg-amber-50/80 border border-amber-200/50 text-amber-800/80 px-3.5 py-1.5 rounded-full text-[12px] font-medium shadow-sm hover:bg-amber-100/80 hover:shadow transition-all hover:-translate-y-0.5"
+                className="whitespace-nowrap flex items-center gap-1 bg-amber-50/80 border border-amber-200/50 text-amber-800/80 px-2.5 py-1 rounded-full text-[11px] font-medium shadow-sm hover:bg-amber-100/80 hover:shadow transition-all hover:-translate-y-0.5"
               >
-                <Briefcase size={13} className="text-amber-600/80" />
+                <Briefcase size={12} className="text-amber-600/80" />
                 工作焦虑
               </button>
               <button
                 type="button"
                 onClick={() => setInput("在感情关系中我遇到了一些困扰，感觉很内耗...")}
-                className="whitespace-nowrap flex items-center gap-1.5 bg-rose-50/80 border border-rose-200/50 text-rose-800/80 px-3.5 py-1.5 rounded-full text-[12px] font-medium shadow-sm hover:bg-rose-100/80 hover:shadow transition-all hover:-translate-y-0.5"
+                className="whitespace-nowrap flex items-center gap-1 bg-rose-50/80 border border-rose-200/50 text-rose-800/80 px-2.5 py-1 rounded-full text-[11px] font-medium shadow-sm hover:bg-rose-100/80 hover:shadow transition-all hover:-translate-y-0.5"
               >
-                <Users size={13} className="text-rose-600/80" />
+                <Users size={12} className="text-rose-600/80" />
                 关系困扰
               </button>
               <button
                 type="button"
                 onClick={() => setInput("我感觉失去了目标和方向，想跟你聊聊")}
-                className="whitespace-nowrap flex items-center gap-1.5 bg-sky-50/80 border border-sky-200/50 text-sky-800/80 px-3.5 py-1.5 rounded-full text-[12px] font-medium shadow-sm hover:bg-sky-100/80 hover:shadow transition-all hover:-translate-y-0.5"
+                className="whitespace-nowrap flex items-center gap-1 bg-sky-50/80 border border-sky-200/50 text-sky-800/80 px-2.5 py-1 rounded-full text-[11px] font-medium shadow-sm hover:bg-sky-100/80 hover:shadow transition-all hover:-translate-y-0.5"
               >
-                <Compass size={13} className="text-sky-600/80" />
+                <Compass size={12} className="text-sky-600/80" />
                 自我探索
               </button>
             </motion.div>
