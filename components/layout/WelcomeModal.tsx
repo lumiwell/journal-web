@@ -30,7 +30,6 @@ export default function WelcomeModal() {
       setStep(step + 1);
     } else {
       setIsOpen(false);
-      router.push('/chat');
     }
   };
 
@@ -141,7 +140,7 @@ export default function WelcomeModal() {
               onClick={handleNext}
               className="w-full py-3.5 bg-sage-primary hover:bg-sage-dark text-white rounded-2xl font-medium tracking-wide transition-colors shadow-sm"
             >
-              {step === 3 ? "开始对话" : "下一步"}
+              {step === 3 ? "开启觉察之旅" : "下一步"}
             </button>
           </div>
           </div>

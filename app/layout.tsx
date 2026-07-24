@@ -26,7 +26,6 @@ export const metadata: Metadata = {
 import type { Viewport } from 'next'
 import { PHProvider } from './providers'
 import PostHogPageView from './PostHogPageView'
-import { PaddleProvider } from './paddle-provider'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -47,8 +46,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body className="min-h-screen flex flex-col bg-background">
-        <PaddleProvider>
-          <PHProvider>
+        <PHProvider>
           <PostHogPageView />
           <AuthProvider>
             <Header />
@@ -60,7 +58,6 @@ export default function RootLayout({
             <CookieBanner />
           </AuthProvider>
         </PHProvider>
-        </PaddleProvider>
       </body>
     </html>
   );

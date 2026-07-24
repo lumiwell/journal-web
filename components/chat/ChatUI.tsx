@@ -23,14 +23,37 @@ import { usePostHog } from "posthog-js/react";
 // ==========================================
 const IDLE_TIMEOUT_MS = 1 * 60 * 1000;         // 常规代谢：默认 6 小时 (测试环境 1 分钟)
 
-export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId }: { sessionId: string, diaryId?: string, topic?: string, t?: string, contextDiaryId?: string }) {
+export default function ChatUI({ sessionId, diaryId, topic, t, contextDiaryId, paymentId }: { sessionId: string, diaryId?: string, topic?: string, t?: string, contextDiaryId?: string, paymentId?: string }) {
   const [input, setInput] = useState("");
-  const { user, isExtractingDiary: backgroundGenerating, setIsExtractingDiary: setBackgroundGenerating } = useAuth();
+  const { user, refreshUser, isExtractingDiary: backgroundGenerating, setIsExtractingDiary: setBackgroundGenerating } = useAuth();
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileError, setTurnstileError] = useState<boolean>(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const router = useRouter();
+  
+  // Active Sync mechanism for payments
+  useEffect(() => {
+    if (paymentId) {
+      import('@/lib/api').then(({ fetchWithAuth }) => {
+        fetchWithAuth("/api/v1/payments/verify", {
+          method: "POST",
+          body: JSON.stringify({ payment_id: paymentId })
+        }).then(res => res.json()).then(data => {
+          if (data.status === "succeeded") {
+             // Refresh user quota to reflect newly added ink drops
+             refreshUser();
+             // Clean up the URL to prevent subsequent verifications on refresh
+             const url = new URL(window.location.href);
+             url.searchParams.delete('payment_id');
+             window.history.replaceState({}, '', url.pathname + url.search);
+          }
+        }).catch(err => {
+           console.error("Payment verification failed", err);
+        });
+      });
+    }
+  }, [paymentId, refreshUser]);
 
   const {
     messages,

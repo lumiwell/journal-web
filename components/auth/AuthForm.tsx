@@ -137,7 +137,7 @@ export default function AuthForm({ title = "欢迎使用觉察", subtitle = "输
       setShowToast(true);
       
       setTimeout(() => {
-        const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/";
+        const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/chat";
         const suffix = is_new_user ? (returnTo.includes("?") ? "&new_user=true" : "?new_user=true") : "";
         router.push(returnTo + suffix);
       }, 500);

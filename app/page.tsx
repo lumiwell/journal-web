@@ -1,28 +1,52 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Sparkles, BrainCircuit, HeartHandshake, ArrowRight, CheckCircle2, Leaf } from "lucide-react";
-import { usePaddle } from "@/app/paddle-provider";
 import { useAuth } from "@/context/AuthContext";
+import { fetchWithAuth } from "@/lib/api";
 
 export default function LandingPage() {
   const router = useRouter();
-  const paddle = usePaddle();
   const { user } = useAuth();
 
-  const handleSubscribe = (priceId: string | undefined) => {
+  const [paymentError, setPaymentError] = useState("");
+  const [isSubscribing, setIsSubscribing] = useState<string | null>(null);
+
+  const handleSubscribe = async (priceId: string | undefined) => {
     if (!priceId) return;
     if (!user) {
-      router.push('/login?returnTo=/#pricing');
+      router.push('/login?returnTo=%2F%23pricing');
       return;
     }
-    if (paddle) {
-      paddle.Checkout.open({
-        items: [{ priceId, quantity: 1 }],
-        customer: { email: user?.email || '' },
-        customData: { userId: user?.id?.toString() || '' }
+    
+    setPaymentError("");
+    setIsSubscribing(priceId);
+    
+    try {
+      const response = await fetchWithAuth("/api/v1/payments/create-checkout", {
+        method: "POST",
+        body: JSON.stringify({ 
+          price_id: priceId, 
+          return_url: window.location.origin + "/chat",
+          cancel_url: window.location.origin + "/#pricing"
+        }),
       });
+      
+      const data = await response.json();
+      
+      if (data?.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        console.error("Backend returned error:", data?.detail);
+        setPaymentError("支付服务暂时繁忙，请稍后重试");
+        setIsSubscribing(null);
+      }
+    } catch (error: any) {
+      console.error("Error creating checkout:", error);
+      setPaymentError("创建支付请求失败，请检查网络连接");
+      setIsSubscribing(null);
     }
   };
 
@@ -169,6 +193,12 @@ export default function LandingPage() {
         <div className="text-center mb-16 w-full max-w-5xl mx-auto">
           <h2 className="text-3xl sm:text-4xl font-bold text-sage-dark mb-4">按需购买，没有订阅压力</h2>
           <p className="text-sage-muted text-lg font-medium">「一杯咖啡的价格，换一次与内心的深度对话」</p>
+          
+          {paymentError && (
+            <div className="mt-8 mx-auto max-w-md p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium animate-in fade-in slide-in-from-bottom-2">
+              {paymentError}
+            </div>
+          )}
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 sm:gap-8 w-full max-w-5xl mx-auto items-center">
@@ -186,8 +216,12 @@ export default function LandingPage() {
                <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
                <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
             </ul>
-            <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_PADDLE_PRICE_BASIC)} className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors">
-              购买墨水
+            <button 
+              onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_DODO_PRICE_INK_4)} 
+              disabled={isSubscribing === process.env.NEXT_PUBLIC_DODO_PRICE_INK_4}
+              className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubscribing === process.env.NEXT_PUBLIC_DODO_PRICE_INK_4 ? "正在连接..." : "购买墨水"}
             </button>
           </div>
 
@@ -211,8 +245,12 @@ export default function LandingPage() {
                  <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
                  <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
               </ul>
-              <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO)} className="mt-auto w-full py-3 rounded-full font-bold bg-sage-primary text-white hover:bg-[#7a9179] transition-colors shadow-lg shadow-sage-primary/20">
-                购买墨水
+              <button 
+                onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_DODO_PRICE_INK_12)} 
+                disabled={isSubscribing === process.env.NEXT_PUBLIC_DODO_PRICE_INK_12}
+                className="mt-auto w-full py-3 rounded-full font-bold bg-sage-primary text-white hover:bg-[#7a9179] transition-colors shadow-lg shadow-sage-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubscribing === process.env.NEXT_PUBLIC_DODO_PRICE_INK_12 ? "正在连接..." : "购买墨水"}
               </button>
             </div>
           </div>
@@ -232,8 +270,12 @@ export default function LandingPage() {
                <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 1 滴墨水 = 1 篇 AI 专属日记</li>
                <li className="flex gap-2 items-center"><CheckCircle2 className="text-sage-primary shrink-0" size={18} /> 对话不消耗墨水</li>
             </ul>
-            <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_PADDLE_PRICE_ULTIMATE)} className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors">
-              购买墨水
+            <button 
+              onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_DODO_PRICE_INK_30)} 
+              disabled={isSubscribing === process.env.NEXT_PUBLIC_DODO_PRICE_INK_30}
+              className="mt-auto w-full py-3 rounded-full font-medium border-2 border-sage-primary text-sage-primary hover:bg-sage-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubscribing === process.env.NEXT_PUBLIC_DODO_PRICE_INK_30 ? "正在连接..." : "购买墨水"}
             </button>
           </div>
         </div>
